@@ -2,6 +2,7 @@
 
 import datetime
 import decimal
+import os
 
 import geopandas as gpd
 import pytest
@@ -165,8 +166,8 @@ def test_movimento_entre_competencias(cenario):
 
 @pytest.fixture
 def ambiente(conn, monkeypatch, tmp_path):
-    monkeypatch.setenv("PINEAL_DSN", conn.dsn)
-    monkeypatch.setenv("RFB_DSN", conn.dsn)
+    monkeypatch.setenv("PINEAL_DSN", os.environ["PINEAL_TEST_DSN"])
+    monkeypatch.setenv("RFB_DSN", os.environ["PINEAL_TEST_DSN"])
     monkeypatch.setattr("etl.config.RELATORIOS", tmp_path / "relatorios")
     with conn.cursor() as cur:
         cur.execute("DROP SCHEMA IF EXISTS dados_rfb CASCADE; CREATE SCHEMA dados_rfb")

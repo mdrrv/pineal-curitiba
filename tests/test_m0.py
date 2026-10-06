@@ -1,5 +1,6 @@
 """M0 de ponta a ponta com arquivos sintéticos nos formatos das fontes reais."""
 
+import os
 import zipfile
 
 import geopandas as gpd
@@ -14,7 +15,7 @@ LON0, LAT0 = -49.2700, -25.4300
 
 @pytest.fixture
 def ambiente(conn, tmp_path, monkeypatch):
-    dsn = conn.dsn
+    dsn = os.environ["PINEAL_TEST_DSN"]
     monkeypatch.setenv("PINEAL_DSN", dsn)
     monkeypatch.setenv("RFB_DSN", dsn)
     monkeypatch.setattr(config, "DADOS_BRUTO", tmp_path / "bruto")
