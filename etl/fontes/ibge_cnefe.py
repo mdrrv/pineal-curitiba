@@ -112,16 +112,18 @@ def carregar(conn, caminho: Path, origem: str) -> int:
             with conn.cursor() as cur:
                 cur.execute(f"CREATE TEMP TABLE cnefe_carga ({', '.join(c + ' TEXT' for c in SAIDA)}) ON COMMIT DROP")
                 cur.copy_expert(f"COPY cnefe_carga ({', '.join(SAIDA)}) FROM STDIN WITH (FORMAT csv)", tmp)
-                cur.execute("TRUNCATE cwb.cnefe")
+                cur.execute("TRUNCATE cnefe")
                 cur.execute("""
-                    INSERT INTO cwb.cnefe (cod_unico, cd_setor, cep, logradouro, logr_chave, numero, especie,
-                                           estabelecimento, nv_geo, geom)
-                    SELECT cod_unico, cd_setor, cwb.norm_cep(cep),
+                    INSERT INTO cnefe (cod_unico, cd_setor, cep, logradouro, logr_chave, logr_completa, numero,
+                                       especie, estabelecimento, nome_chave, nv_geo, geom)
+                    SELECT cod_unico, cd_setor, norm_cep(cep),
                            NULLIF(concat_ws(' ', NULLIF(btrim(tipo), ''), NULLIF(btrim(titulo), ''), NULLIF(btrim(nome), '')), ''),
-                           cwb.norm_logradouro(concat_ws(' ', tipo, titulo, nome)),
-                           cwb.norm_numero(numero),
+                           norm_logradouro(concat_ws(' ', tipo, titulo, nome)),
+                           norm_logradouro_completa(concat_ws(' ', tipo, titulo, nome)),
+                           norm_numero(numero),
                            NULLIF(especie, '')::SMALLINT,
                            NULLIF(btrim(estabelecimento), ''),
+                           norm_nome(estabelecimento),
                            NULLIF(nv_geo, '')::SMALLINT,
                            ST_SetSRID(ST_MakePoint(lon::float8, lat::float8), 4326)
                     FROM cnefe_carga
@@ -129,9 +131,9 @@ def carregar(conn, caminho: Path, origem: str) -> int:
                     ON CONFLICT (cod_unico) DO NOTHING
                 """)
                 gravadas = cur.rowcount
-                cur.execute("ANALYZE cwb.cnefe")
+                cur.execute("ANALYZE cnefe")
     db.registrar(conn, FONTE, origem, caminho.name, baixar.sha256(caminho), gravadas, cabecalho=cab, separador=sep)
-    log.info("%d endereços gravados em cwb.cnefe", gravadas)
+    log.info("%d endereços gravados em cnefe", gravadas)
     return gravadas
 
 
@@ -139,10 +141,11 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--arquivo", help="zip ou csv já baixado")
     args = ap.parse_args(argv)
-    caminho, origem = obter_arquivo(args.arquivo)
-    with db.conectar() as conn:
-        db.criar_schema(conn)
-        carregar(conn, caminho, origem)
+    with db.etapa("cnefe"):
+        caminho, origem = obter_arquivo(args.arquivo)
+        with db.conectar() as conn:
+            db.criar_schema(conn)
+            carregar(conn, caminho, origem)
 
 
 if __name__ == "__main__":

@@ -44,10 +44,10 @@ def carregar(conn, caminho: Path, origem: str) -> int:
     attrs = gdf.drop(columns=gdf.geometry.name)
     linhas = [(str(a[col_setor]), geo._atributos(a), g.wkb) for a, g in zip(attrs.to_dict("records"), gdf.geometry)]
     with conn.cursor() as cur:
-        cur.execute("TRUNCATE cwb.setor")
+        cur.execute("TRUNCATE setor")
         execute_values(
             cur,
-            "INSERT INTO cwb.setor (cd_setor, atributos, geom) VALUES %s ON CONFLICT (cd_setor) DO NOTHING",
+            "INSERT INTO setor (cd_setor, atributos, geom) VALUES %s ON CONFLICT (cd_setor) DO NOTHING",
             linhas,
             template="(%s, %s::jsonb, ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_GeomFromWKB(%s, 4326)), 3)))",
             page_size=500,
@@ -61,10 +61,11 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--arquivo", help="zip/shp/gpkg já baixado")
     args = ap.parse_args(argv)
-    caminho, origem = obter_arquivo(args.arquivo)
-    with db.conectar() as conn:
-        db.criar_schema(conn)
-        carregar(conn, caminho, origem)
+    with db.etapa("setores"):
+        caminho, origem = obter_arquivo(args.arquivo)
+        with db.conectar() as conn:
+            db.criar_schema(conn)
+            carregar(conn, caminho, origem)
 
 
 if __name__ == "__main__":

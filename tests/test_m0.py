@@ -56,21 +56,25 @@ def ambiente(conn, tmp_path, monkeypatch):
 
     # banco RFB falso
     with conn.cursor() as cur:
+        cur.execute("DROP SCHEMA IF EXISTS cwb CASCADE")  # resto de rodadas antigas; o teste usa outro schema
         cur.execute("""
             DROP SCHEMA IF EXISTS dados_rfb CASCADE;
             CREATE SCHEMA dados_rfb;
             CREATE TABLE dados_rfb.cnpj_consolidado (
-                cnpj VARCHAR(14), razao_social TEXT, nome_fantasia TEXT, situacao_cadastral VARCHAR(2),
+                cnpj VARCHAR(14), cnpj_basico VARCHAR(8), razao_social TEXT, nome_fantasia TEXT, situacao_cadastral VARCHAR(2),
                 data_situacao_cadastral VARCHAR(8), data_inicio_atividade VARCHAR(8), cnae_fiscal_principal VARCHAR(7),
                 natureza_juridica VARCHAR(4), capital_social NUMERIC(18,2), porte_empresa VARCHAR(2),
                 opcao_pelo_simples VARCHAR(1), opcao_mei VARCHAR(1), identificador_mf VARCHAR(1), logradouro TEXT,
                 numero TEXT, complemento TEXT, bairro TEXT, cep VARCHAR(8), uf VARCHAR(2), municipio VARCHAR(4),
                 nome_municipio TEXT);
-            INSERT INTO dados_rfb.cnpj_consolidado (cnpj, razao_social, situacao_cadastral, logradouro, numero, cep, uf, municipio, nome_municipio) VALUES
-                ('11111111000101', 'A, "LTDA"', '02', 'R DR FAIVRE', '105', '80060140', 'PR', '7535', 'CURITIBA'),
-                ('11111111000102', 'B', '08', 'RUA FAIVRE', 'SN', '80060140', 'PR', '7535', 'CURITIBA'),
-                ('11111111000103', 'C', '02', 'R NADA', '1', '00000000', 'PR', '7535', 'CURITIBA'),
-                ('22222222000101', 'D', '02', 'R DR FAIVRE', '105', '86000000', 'PR', '5269', 'LONDRINA');
+            INSERT INTO dados_rfb.cnpj_consolidado (cnpj, cnpj_basico, razao_social, situacao_cadastral,
+                data_inicio_atividade, data_situacao_cadastral, natureza_juridica, opcao_mei, logradouro, numero,
+                cep, uf, municipio, nome_municipio) VALUES
+                ('11111111000101', '11111111', 'A, "LTDA"', '02', '20190110', '20190110', '2062', 'N', 'R DR FAIVRE', '105', '80060140', 'PR', '7535', 'CURITIBA'),
+                ('11111111000102', '11111111', 'B', '08', '20150101', '20230231', '2062', 'N', 'RUA FAIVRE', 'SN', '80060140', 'PR', '7535', 'CURITIBA'),
+                ('11111111000103', '11111111', 'C', '02', '00000000', '', '2062', 'N', 'R NADA', '1', '00000000', 'PR', '7535', 'CURITIBA'),
+                ('33333333000101', '33333333', 'JOAO DA SILVA 12345678901', '02', '20200115', '20200115', '2135', 'S', 'R DR FAIVRE', '107', '80060140', 'PR', '7535', 'CURITIBA'),
+                ('22222222000101', '22222222', 'D', '02', '20200101', '20200101', '2062', 'N', 'R DR FAIVRE', '105', '86000000', 'PR', '5269', 'LONDRINA');
         """)
     conn.commit()
     yield tmp_path
@@ -82,26 +86,43 @@ def ambiente(conn, tmp_path, monkeypatch):
 def test_m0_completo(conn, ambiente):
     m0.main([])
     with conn.cursor() as cur:
-        cur.execute("SELECT count(*) FROM cwb.setor")
+        cur.execute("SELECT count(*) FROM setor")
         assert cur.fetchone()[0] == 1
-        cur.execute("SELECT nome, codigo, round(ST_X(ST_Centroid(geom))::numeric, 3) FROM cwb.bairro")
+        cur.execute("SELECT nome, codigo, round(ST_X(ST_Centroid(geom))::numeric, 3) FROM bairro")
         assert cur.fetchone() == ("CENTRO", "1", round(__import__("decimal").Decimal(LON0), 3))
-        cur.execute("SELECT nome FROM cwb.regional UNION ALL SELECT codigo FROM cwb.zoneamento")
+        cur.execute("SELECT nome FROM regional UNION ALL SELECT codigo FROM zoneamento")
         assert [r[0] for r in cur.fetchall()] == ["MATRIZ", "ZC"]
-        cur.execute("SELECT count(*), min(logr_chave) FROM cwb.cnefe")
+        cur.execute("SELECT count(*), min(logr_chave) FROM cnefe")
         assert cur.fetchone() == (20, "FAIVRE")
-        cur.execute("SELECT cnpj, geo_precisao, cd_setor, bairro, regional, zona, h3_9 IS NOT NULL FROM cwb.empresa_geo ORDER BY cnpj")
+        cur.execute("SELECT cnpj, geo_precisao, cd_setor, bairro, regional, zona, h3_9 IS NOT NULL FROM empresa_geo ORDER BY cnpj")
         assert cur.fetchall() == [
             ("11111111000101", "endereco", "410690205000001P", "CENTRO", "MATRIZ", "ZC", True),
             ("11111111000102", "logradouro", "410690205000001P", "CENTRO", "MATRIZ", "ZC", True),
             ("11111111000103", "nao_localizado", None, None, None, None, False),
+            ("33333333000101", "endereco", "410690205000001P", "CENTRO", "MATRIZ", "ZC", True),
         ]
-        cur.execute("SELECT razao_social FROM cwb.empresa WHERE cnpj = '11111111000101'")
-        assert cur.fetchone()[0] == 'A, "LTDA"'
-        cur.execute("SELECT fonte FROM cwb.execucao ORDER BY id")
+        cur.execute("""SELECT cnpj, razao_social, pessoa_fisica, cpf_mascarado, data_inicio_atividade,
+                              data_situacao_cadastral FROM empresa ORDER BY cnpj""")
+        d = __import__("datetime").date
+        assert cur.fetchall() == [
+            ("11111111000101", 'A, "LTDA"', False, None, d(2019, 1, 10), d(2019, 1, 10)),
+            ("11111111000102", "B", False, None, d(2015, 1, 1), None),  # 31/02 inválida vira nula
+            ("11111111000103", "C", False, None, None, None),
+            ("33333333000101", None, True, "***.456.789-**", d(2020, 1, 15), d(2020, 1, 15)),
+        ]
+        cur.execute("SELECT count(*) FROM empresa WHERE razao_social LIKE '%%12345678901%%' OR nome_fantasia LIKE '%%JOAO%%'")
+        assert cur.fetchone()[0] == 0
+        cur.execute("SELECT fonte FROM execucao WHERE tipo = 'carga' ORDER BY id")
         assert [r[0] for r in cur.fetchall()] == [
             "ibge_setores", "ippuc_bairro", "ippuc_regional", "ippuc_zoneamento", "ibge_cnefe", "rfb_cnpj",
             "geocodificacao", "territorio"]
+        cur.execute("SELECT fonte, status FROM execucao WHERE tipo = 'etapa' ORDER BY id")
+        assert cur.fetchall() == [(e, "ok") for e in
+                                  ["schema", "setores", "ippuc", "cnefe", "cnpj", "geocodificar", "territorio"]]
+        cur.execute("SELECT count(DISTINCT run_id), count(*) FILTER (WHERE run_id IS NULL) FROM execucao")
+        assert cur.fetchone() == (1, 0)
+        cur.execute("SELECT count(*) FROM pg_namespace WHERE nspname = 'cwb'")
+        assert cur.fetchone()[0] == 0  # tudo foi para o schema configurado
     assert (ambiente / "relatorios" / "geocodificacao.md").exists()
     assert (ambiente / "relatorios" / "territorio.md").exists()
 
@@ -109,5 +130,15 @@ def test_m0_completo(conn, ambiente):
     conn.commit()
     m0.main(["--pular", "setores"])
     with conn.cursor() as cur:
-        cur.execute("SELECT (SELECT count(*) FROM cwb.empresa), (SELECT count(*) FROM cwb.bairro), (SELECT count(*) FROM cwb.cnefe)")
-        assert cur.fetchone() == (3, 1, 20)
+        cur.execute("SELECT (SELECT count(*) FROM empresa), (SELECT count(*) FROM bairro), (SELECT count(*) FROM cnefe)")
+        assert cur.fetchone() == (4, 1, 20)
+
+
+def test_etapa_com_erro_fica_registrada(conn, ambiente):
+    (ambiente / "bruto" / "ibge_cnefe" / "4106902_CURITIBA.zip").write_bytes(b"isto nao e um zip")
+    with pytest.raises(Exception):
+        m0.main(["--so", "cnefe"])
+    conn.commit()
+    with conn.cursor() as cur:
+        cur.execute("SELECT fonte, status, erro IS NOT NULL FROM execucao WHERE tipo = 'etapa'")
+        assert cur.fetchall() == [("cnefe", "erro", True)]

@@ -42,17 +42,17 @@ def _atributos(linha: dict) -> str:
 
 
 def gravar_poligonos(conn, tabela: str, gdf: gpd.GeoDataFrame, campo_nome: str, campo_codigo: str | None) -> int:
-    """Substitui o conteúdo de cwb.<tabela> (bairro, regional, zoneamento)."""
+    """Substitui o conteúdo de <tabela> (bairro, regional, zoneamento)."""
     attrs = gdf.drop(columns=gdf.geometry.name)
     linhas = [
         (None if campo_codigo is None else _txt(a[campo_codigo]), _txt(a[campo_nome]), _atributos(a), g.wkb)
         for a, g in zip(attrs.to_dict("records"), gdf.geometry)
     ]
     with conn.cursor() as cur:
-        cur.execute(f"TRUNCATE cwb.{tabela}")
+        cur.execute(f"TRUNCATE {tabela}")
         execute_values(
             cur,
-            f"INSERT INTO cwb.{tabela} (codigo, nome, atributos, geom) VALUES %s",
+            f"INSERT INTO {tabela} (codigo, nome, atributos, geom) VALUES %s",
             linhas,
             template="(%s, %s, %s::jsonb, ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_GeomFromWKB(%s, 4326)), 3)))",
             page_size=500,

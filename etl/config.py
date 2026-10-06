@@ -1,5 +1,8 @@
 import logging
 import os
+import re
+import uuid
+from datetime import datetime
 from pathlib import Path
 
 import yaml
@@ -16,6 +19,13 @@ COD_IBGE = os.getenv("PINEAL_COD_IBGE", "4106902")
 COD_RFB = os.getenv("PINEAL_COD_RFB", "7535")
 NOME_MUNICIPIO = os.getenv("PINEAL_NOME_MUNICIPIO", "CURITIBA")
 UF = os.getenv("PINEAL_UF", "PR")
+
+SCHEMA = os.getenv("PINEAL_SCHEMA", "cwb")
+if not re.fullmatch(r"[a-z_][a-z0-9_]{0,62}", SCHEMA):
+    raise SystemExit(f"PINEAL_SCHEMA inválido: {SCHEMA!r} (use minúsculas, dígitos e _)")
+
+# identifica todas as etapas de uma mesma rodada; etl.m0 e etl.m2 rodam tudo no mesmo processo
+RUN_ID = os.getenv("PINEAL_RUN_ID") or f"{datetime.now():%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
 

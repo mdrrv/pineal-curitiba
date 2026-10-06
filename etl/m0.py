@@ -17,7 +17,7 @@ log = logging.getLogger("m0")
 
 
 def _schema():
-    with db.conectar() as conn:
+    with db.etapa("schema"), db.conectar() as conn:
         db.criar_schema(conn)
 
 

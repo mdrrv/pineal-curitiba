@@ -76,7 +76,7 @@ def main(argv=None):
                 print("   colunas:", geo.colunas(caminho))
         return
 
-    with db.conectar() as conn:
+    with db.etapa("ippuc"), db.conectar() as conn:
         db.criar_schema(conn)
         for c in escolhidas:
             carregar_camada(conn, c, camadas[c])
