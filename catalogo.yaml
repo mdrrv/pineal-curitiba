@@ -2,6 +2,7 @@
 #
 # status:   ativo (script pronto) | a_conferir (link/colunas a confirmar no primeiro download)
 #           | planejado (sem script ainda) | lai (só via pedido de acesso à informação) | convenio
+#           | fora (mapeada e descartada, com o motivo em obs)
 # fase:     M0 fundação | M1 prefeitura/IPPUC | M1-seg segurança | M1b listas com CNPJ | M2 contexto
 # chaves:   cnpj | cnpj_talvez (a confirmar) | end (endereço) | geo (coordenada) | terr (território agregado)
 #           | lote (indicação fiscal)
@@ -73,6 +74,37 @@ fontes:
     chaves: [cnpj, end]
     periodicidade: mensal
     script: etl/fontes/cnpj_recorte.py
+
+  # ---------------------------------------------------------------- M2: apoio e cruzamentos (scripts prontos)
+
+  - id: ibge_cnae
+    nome: Hierarquia da CNAE 2.3 (seção, divisão, grupo, classe, subclasse)
+    dono: IBGE (CONCLA)
+    fase: M2
+    status: a_conferir
+    chaves: [cnae]
+    url: https://servicodados.ibge.gov.br/api/v2/cnae/subclasses
+    obs: sem resposta da API, usa dados_rfb.cnae (só a descrição da subclasse)
+    script: etl/fontes/apoio.py
+
+  - id: mindata_cruzamentos
+    nome: PNCP, TCE-PR, PGFN e sanções federais por CNPJ
+    dono: ETL MINDATA (dados_rfb.pncp_contratos, tce_pr_contratos, pgfn_divida_ativa, sancoes_federais)
+    fase: M2
+    status: ativo
+    chaves: [cnpj]
+    obs: lê do banco RFB, sem baixar nada; tabela ausente é pulada
+    script: etl/fontes/mindata_cruzamentos.py
+
+  - id: overture_edificacoes
+    nome: Edificações (Overture Buildings) por hexágono H3
+    dono: Overture Maps Foundation
+    fase: M2
+    status: a_conferir
+    chaves: [geo]
+    licenca: ODbL
+    release: null   # sem listagem do bucket, informe aqui a release (ex.: 2026-09-17.0)
+    script: etl/fontes/overture_edificacoes.py
 
   # ---------------------------------------------------------------- M1: Portal de Dados Abertos de Curitiba
 
@@ -318,6 +350,9 @@ fontes:
   - {id: ipardes_bde, nome: "Base de Dados do Estado (BDEweb)", dono: IPARDES, fase: M2, status: planejado, chaves: [terr]}
   - {id: jucepar_empresas_pr, nome: "Empresas PR (aberturas e fechamentos)", dono: JUCEPAR, fase: M2, status: planejado, chaves: [terr]}
   - {id: osm_overture, nome: "OSM e Overture (vias e POIs)", dono: "OSM / Overture", fase: M2, status: planejado, chaves: [geo]}
+  - {id: inpi_marcas, nome: Marcas por CNPJ titular, dono: INPI, fase: M2, status: planejado, chaves: [cnpj], obs: "acesso aberto em lote a confirmar (RPI semanal em XML)"}
+  - {id: clima, nome: Chuva e temperatura diárias, dono: "Simepar / INMET", fase: M2, status: planejado, chaves: [terr], obs: sazonalidade do varejo}
+  - {id: ookla, nome: Velocidade de internet por tile, dono: Ookla, fase: M2, status: fora, chaves: [geo], obs: "licença CC BY-NC: proíbe uso comercial"}
 
   # ---------------------------------------------------------------- pedidos via LAI (ver docs/pedidos-lai.md)
 

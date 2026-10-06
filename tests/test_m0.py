@@ -6,7 +6,8 @@ import geopandas as gpd
 import pytest
 from shapely.geometry import box
 
-from etl import config, m0
+from etl import config, m0, m2
+from etl.fontes import apoio
 
 LON0, LAT0 = -49.2700, -25.4300
 
@@ -86,6 +87,7 @@ def ambiente(conn, tmp_path, monkeypatch):
                 ('11111111000103', '11111111', 'C', '02', '00000000', '', '2062', 'N', 'R NADA', '1', '00000000', 'PR', '7535', 'CURITIBA'),
                 ('33333333000101', '33333333', 'JOAO DA SILVA 12345678901', '02', '20200115', '20200115', '2135', 'S', 'R DR FAIVRE', '107', '80060140', 'PR', '7535', 'CURITIBA'),
                 ('22222222000101', '22222222', 'D', '02', '20200101', '20200101', '2062', 'N', 'R DR FAIVRE', '105', '86000000', 'PR', '5269', 'LONDRINA');
+                    UPDATE dados_rfb.cnpj_consolidado SET cnae_fiscal_principal = '4711301';
         """)
     conn.commit()
     yield tmp_path
@@ -94,7 +96,7 @@ def ambiente(conn, tmp_path, monkeypatch):
     conn.commit()
 
 
-def test_m0_completo(conn, ambiente):
+def test_m0_completo(conn, ambiente, monkeypatch):
     m0.main([])
     with conn.cursor() as cur:
         cur.execute("SELECT count(*) FROM setor")
@@ -148,6 +150,21 @@ def test_m0_completo(conn, ambiente):
         assert cur.fetchone()[0] == 0  # tudo foi para o schema configurado
     assert (ambiente / "relatorios" / "geocodificacao.md").exists()
     assert (ambiente / "relatorios" / "territorio.md").exists()
+
+    # M2 em cima do M0 (sem rede: a API de CNAE falha e as tabelas da MINDATA não existem no banco falso)
+    conn.commit()
+    monkeypatch.setattr(apoio.requests, "get", lambda *a, **k: (_ for _ in ()).throw(apoio.requests.ConnectionError()))
+    m2.main(["--pular", "edificacoes"])
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM empresa_perfil")
+        assert cur.fetchone()[0] == 4
+        cur.execute("SELECT count(*) FROM m2_saturacao_bairro")
+        assert cur.fetchone()[0] > 0
+        cur.execute(
+            "SELECT fonte, status FROM execucao WHERE tipo = 'etapa' AND fonte IN ('apoio', 'cruzamentos', 'enriquecer', 'indicadores', 'exportar') ORDER BY id"
+        )
+        assert cur.fetchall() == [(e, "ok") for e in ["apoio", "cruzamentos", "enriquecer", "indicadores", "exportar"]]
+    assert (ambiente / "exportar" / "empresas.parquet").exists()
 
     # rodar de novo não duplica nada
     conn.commit()

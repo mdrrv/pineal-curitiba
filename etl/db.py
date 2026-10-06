@@ -48,6 +48,7 @@ def executar_sql(conn, arquivo: str | Path) -> None:
 def criar_schema(conn) -> None:
     executar_sql(conn, "00_schema.sql")
     executar_sql(conn, "01_normalizacao.sql")
+    executar_sql(conn, "02_apoio.sql")
 
 
 def _inserir(conn, **campos) -> None:

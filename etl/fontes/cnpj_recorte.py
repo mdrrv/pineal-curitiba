@@ -1,7 +1,7 @@
 """Recorte dos estabelecimentos do município a partir de dados_rfb.cnpj_consolidado (ETL da MINDATA).
 
 Uso:
-    python -m etl.fontes.cnpj_recorte
+    python -m etl.fontes.cnpj_recorte [--competencia AAAA-MM]
 
 Lê do banco RFB (RFB_DSN ou RFB_DB_*; sem configuração, o mesmo banco do Pineal) e grava em empresa.
 Traz todas as situações cadastrais: as baixadas e inaptas entram na dinâmica de fechamentos.
@@ -9,11 +9,17 @@ Traz todas as situações cadastrais: as baixadas e inaptas entram na dinâmica 
 LGPD: quando o CNPJ é de pessoa física (MEI ou empresário individual, natureza 2135), a razão social
 não é gravada; o CPF que a Receita põe nela fica só mascarado (***.456.789-**). Nome fantasia com
 CPF dentro também não é gravado. Os dados passam por uma tabela temporária, nunca pela tabela final.
+
+Cada rodada também grava uma foto do recorte em empresa_historico, na competência informada (padrão:
+PINEAL_COMPETENCIA ou o mês corrente). Rodar de novo na mesma competência substitui a foto. Com uma foto
+por mês, aberturas, fechamentos e mudanças de endereço saem da comparação entre competências.
 """
 
 import argparse
 import logging
+import os
 import tempfile
+from datetime import date
 
 from etl import config, db
 
@@ -87,8 +93,37 @@ def gravar(conn, arquivo_csv) -> tuple[int, int, int]:
     return n, ativas, pf
 
 
+def competencia(texto: str | None) -> date:
+    texto = texto or os.getenv("PINEAL_COMPETENCIA")
+    if not texto:
+        hoje = date.today()
+        return date(hoje.year, hoje.month, 1)
+    ano, mes = texto.split("-")[:2]
+    return date(int(ano), int(mes), 1)
+
+
+def foto_mensal(conn, comp: date) -> int:
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM empresa_historico WHERE competencia = %s", (comp,))
+        cur.execute(
+            """
+            INSERT INTO empresa_historico (competencia, cnpj, situacao_cadastral, data_situacao_cadastral,
+                data_inicio_atividade, cnae_fiscal_principal, porte_empresa, capital_social, opcao_mei, endereco_chave)
+            SELECT %s, cnpj, situacao_cadastral, data_situacao_cadastral, data_inicio_atividade, cnae_fiscal_principal,
+                   porte_empresa, capital_social, opcao_mei,
+                   concat_ws('|', norm_cep(cep), norm_logradouro(logradouro), norm_numero(numero))
+            FROM empresa
+            """,
+            (comp,),
+        )
+        return cur.rowcount
+
+
 def main(argv=None):
-    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args(argv)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--competencia", help="AAAA-MM da foto mensal (padrão: PINEAL_COMPETENCIA ou mês corrente)")
+    args = ap.parse_args(argv)
+    comp = competencia(args.competencia)
     with db.etapa("cnpj"), tempfile.TemporaryFile("w+b") as tmp:
         with db.conectar(config.dsn_rfb(), schema=None) as rfb, rfb.cursor() as cur:
             log.info(
@@ -104,6 +139,7 @@ def main(argv=None):
             n, ativas, pf = gravar(conn, tmp)
             if n == 0:
                 raise SystemExit("recorte vazio: confira PINEAL_COD_RFB/PINEAL_NOME_MUNICIPIO e o banco RFB")
+            foto_mensal(conn, comp)
             db.registrar(
                 conn,
                 FONTE,
@@ -113,6 +149,7 @@ def main(argv=None):
                 pessoa_fisica=pf,
                 uf=config.UF,
                 cod_rfb=config.COD_RFB,
+                competencia=comp,
             )
         log.info("%d estabelecimentos (%d ativos, %d de pessoa física) em empresa", n, ativas, pf)
 
