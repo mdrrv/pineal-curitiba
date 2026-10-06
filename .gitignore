@@ -7,3 +7,5 @@ dados/*
 !dados/.gitkeep
 relatorios/*
 !relatorios/.gitkeep
+*.egg-info/
+build/

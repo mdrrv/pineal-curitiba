@@ -1,4 +1,5 @@
 """Download com cache local. O arquivo fica em dados/bruto/<fonte>/ e não é baixado de novo."""
+
 import hashlib
 import logging
 import re
@@ -69,5 +70,7 @@ def resolver_no_diretorio(url_diretorio: str, padrao: str) -> str:
 def arquivo_local(fonte_id: str, padrao: str) -> Path | None:
     """Arquivo colocado à mão em dados/bruto/<fonte>/ (para fontes sem link direto)."""
     rx = re.compile(padrao, re.I)
-    achados = sorted(p for p in pasta(fonte_id).iterdir() if p.is_file() and rx.search(p.name) and not p.name.endswith(".parcial"))
+    achados = sorted(
+        p for p in pasta(fonte_id).iterdir() if p.is_file() and rx.search(p.name) and not p.name.endswith(".parcial")
+    )
     return achados[-1] if achados else None

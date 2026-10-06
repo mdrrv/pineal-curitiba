@@ -8,6 +8,7 @@ Lê as fontes do catalogo.yaml que têm `portal_chave`. Gera relatorios/inventar
 links encontrados, separador, codificação, colunas e preenchimento de cada coluna. Não grava valores das
 linhas no relatório (algumas bases têm nome e CPF).
 """
+
 import argparse
 import csv
 import io
@@ -71,8 +72,10 @@ def descrever_csv(dados: bytes) -> dict:
             break
     sinais = {k: [c for c in cab if rx.search(c)] for k, rx in INTERESSE.items()}
     return {
-        "codificacao": enc, "separador": sep, "linhas_lidas": n,
-        "colunas": [(c, round(100 * p / n, 1) if n else 0.0) for c, p in zip(cab, preenchidas)],
+        "codificacao": enc,
+        "separador": sep,
+        "linhas_lidas": n,
+        "colunas": [(c, round(100 * p / n, 1) if n else 0.0) for c, p in zip(cab, preenchidas, strict=True)],
         "sinais": {k: v for k, v in sinais.items() if v},
     }
 
@@ -107,7 +110,12 @@ def main(argv=None):
 
     md = ["# Inventário do Portal de Dados Abertos de Curitiba", ""]
     for f in fontes:
-        md += [f"## {f['nome']} (`{f['id']}`)", "", f"Página: {BASE}/conjuntodado/detalhe?chave={f['portal_chave']}", ""]
+        md += [
+            f"## {f['nome']} (`{f['id']}`)",
+            "",
+            f"Página: {BASE}/conjuntodado/detalhe?chave={f['portal_chave']}",
+            "",
+        ]
         try:
             achados = links_de_arquivo(detalhe(f["portal_chave"]))
         except requests.RequestException as e:
@@ -115,7 +123,9 @@ def main(argv=None):
             md += [f"Erro ao abrir a página: `{e}`", ""]
             continue
         log.info("%s: %d links", f["id"], len(achados))
-        md += [f"- {u}" for u in achados] or ["Nenhum link de arquivo na página (pode ser webservice ou carregado por script)."]
+        md += [f"- {u}" for u in achados] or [
+            "Nenhum link de arquivo na página (pode ser webservice ou carregado por script)."
+        ]
         md.append("")
         if not args.baixar:
             continue
@@ -132,9 +142,12 @@ def main(argv=None):
                 if not d:
                     md += ["(não tabular, não descrito)", ""]
                     continue
-                md += [f"Codificação `{d['codificacao']}`, separador `{d['separador']}`, {d['linhas_lidas']} linhas lidas.", ""]
+                md += [
+                    f"Codificação `{d['codificacao']}`, separador `{d['separador']}`, {d['linhas_lidas']} linhas lidas.",
+                    "",
+                ]
                 if d["sinais"]:
-                    md += [f"Sinais: " + "; ".join(f"**{k}**: {', '.join(v)}" for k, v in d["sinais"].items()), ""]
+                    md += ["Sinais: " + "; ".join(f"**{k}**: {', '.join(v)}" for k, v in d["sinais"].items()), ""]
                 md += ["| coluna | preenchida (%) |", "|---|---|"] + [f"| {c} | {p} |" for c, p in d["colunas"]] + [""]
 
     config.RELATORIOS.mkdir(exist_ok=True)

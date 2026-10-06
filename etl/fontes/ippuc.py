@@ -9,6 +9,7 @@ Se a camada tiver `url` no catálogo, o script baixa sozinho.
 
 --listar mostra as colunas de cada arquivo encontrado, para ajustar campo_nome/campo_codigo no catálogo.
 """
+
 import argparse
 import logging
 
@@ -41,8 +42,12 @@ def arquivo_da_camada(camada: str, cfg: dict):
 def carregar_camada(conn, camada: str, cfg: dict) -> int:
     caminho = arquivo_da_camada(camada, cfg)
     if caminho is None:
-        log.warning("camada %s: nenhum arquivo em %s casando com /%s/. Pulando.",
-                    camada, baixar.pasta(FONTE), cfg["padrao_arquivo"])
+        log.warning(
+            "camada %s: nenhum arquivo em %s casando com /%s/. Pulando.",
+            camada,
+            baixar.pasta(FONTE),
+            cfg["padrao_arquivo"],
+        )
         return 0
     cols = geo.colunas(caminho)
     campo_nome = cfg.get("campo_nome") or geo.achar_coluna(cols, CANDIDATOS_NOME[camada])
@@ -54,8 +59,17 @@ def carregar_camada(conn, camada: str, cfg: dict) -> int:
     log.info("camada %s: %s (nome=%s, codigo=%s)", camada, caminho.name, campo_nome, campo_codigo)
     gdf = geo.ler(caminho, crs_padrao=cfg.get("crs_padrao"))
     n = geo.gravar_poligonos(conn, camada, gdf, campo_nome, campo_codigo)
-    db.registrar(conn, f"{FONTE}_{camada}", cfg.get("url") or str(caminho), caminho.name, baixar.sha256(caminho), n,
-                 colunas=cols, campo_nome=campo_nome, campo_codigo=campo_codigo)
+    db.registrar(
+        conn,
+        f"{FONTE}_{camada}",
+        cfg.get("url") or str(caminho),
+        caminho.name,
+        baixar.sha256(caminho),
+        n,
+        colunas=cols,
+        campo_nome=campo_nome,
+        campo_codigo=campo_codigo,
+    )
     log.info("camada %s: %d polígonos", camada, n)
     return n
 

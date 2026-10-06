@@ -1,4 +1,5 @@
 """M0 de ponta a ponta com arquivos sintéticos nos formatos das fontes reais."""
+
 import zipfile
 
 import geopandas as gpd
@@ -23,8 +24,11 @@ def ambiente(conn, tmp_path, monkeypatch):
     pasta = tmp_path / "shp"
     pasta.mkdir()
     gpd.GeoDataFrame(
-        {"CD_SETOR": ["410690205000001P", "411370005000001P"], "CD_MUN": ["4106902", "4113700"],
-         "NM_MUN": ["Curitiba", "Londrina"]},
+        {
+            "CD_SETOR": ["410690205000001P", "411370005000001P"],
+            "CD_MUN": ["4106902", "4113700"],
+            "NM_MUN": ["Curitiba", "Londrina"],
+        },
         geometry=[box(LON0 - 0.01, LAT0 - 0.01, LON0 + 0.01, LAT0 + 0.01), box(-51.2, -23.4, -51.1, -23.3)],
         crs=4674,
     ).to_file(pasta / "PR_setores_CD2022.shp")
@@ -37,19 +41,26 @@ def ambiente(conn, tmp_path, monkeypatch):
     (bruto / "ippuc").mkdir()
     caixa = gpd.GeoSeries([box(LON0 - 0.01, LAT0 - 0.01, LON0 + 0.01, LAT0 + 0.01)], crs=4326)
     gpd.GeoDataFrame({"NOME": ["CENTRO"], "CODIGO": [1.0]}, geometry=caixa.to_crs(31982).values).to_file(
-        bruto / "ippuc" / "DIVISA_DE_BAIRROS.shp")
+        bruto / "ippuc" / "DIVISA_DE_BAIRROS.shp"
+    )
     (bruto / "ippuc" / "DIVISA_DE_BAIRROS.prj").unlink()
     gpd.GeoDataFrame({"NOME_REGIO": ["MATRIZ"]}, geometry=caixa.values, crs=4326).to_file(
-        bruto / "ippuc" / "regionais.geojson", driver="GeoJSON")
+        bruto / "ippuc" / "regionais.geojson", driver="GeoJSON"
+    )
     gpd.GeoDataFrame({"SG_ZONA": ["ZC"], "NM_ZONA": ["ZONA CENTRAL"]}, geometry=caixa.values, crs=4326).to_file(
-        bruto / "ippuc" / "zoneamento.gpkg", driver="GPKG")
+        bruto / "ippuc" / "zoneamento.gpkg", driver="GPKG"
+    )
 
     # CNEFE: zip com csv ; e decimal com vírgula
-    linhas = ["COD_UNICO_ENDERECO;COD_UF;COD_MUNICIPIO;COD_SETOR;CEP;NOM_TIPO_SEGLOGR;NOM_TITULO_SEGLOGR;"
-              "NOM_SEGLOGR;NUM_ENDERECO;LATITUDE;LONGITUDE;NV_GEO_COORD;COD_ESPECIE;DSC_ESTABELECIMENTO"]
+    linhas = [
+        "COD_UNICO_ENDERECO;COD_UF;COD_MUNICIPIO;COD_SETOR;CEP;NOM_TIPO_SEGLOGR;NOM_TITULO_SEGLOGR;"
+        "NOM_SEGLOGR;NUM_ENDERECO;LATITUDE;LONGITUDE;NV_GEO_COORD;COD_ESPECIE;DSC_ESTABELECIMENTO"
+    ]
     for n in range(100, 120):
         lon = str(LON0 + (n - 100) * 0.00005).replace(".", ",")
-        linhas.append(f"{n};41;4106902;410690205000001P;80060140;RUA;DOUTOR;FAIVRE;{n};{str(LAT0).replace('.', ',')};{lon};1;8;")
+        linhas.append(
+            f"{n};41;4106902;410690205000001P;80060140;RUA;DOUTOR;FAIVRE;{n};{str(LAT0).replace('.', ',')};{lon};1;8;"
+        )
     (bruto / "ibge_cnefe").mkdir()
     with zipfile.ZipFile(bruto / "ibge_cnefe" / "4106902_CURITIBA.zip", "w") as z:
         z.writestr("4106902_CURITIBA.csv", "\n".join(linhas).encode("utf-8"))
@@ -94,7 +105,9 @@ def test_m0_completo(conn, ambiente):
         assert [r[0] for r in cur.fetchall()] == ["MATRIZ", "ZC"]
         cur.execute("SELECT count(*), min(logr_chave) FROM cnefe")
         assert cur.fetchone() == (20, "FAIVRE")
-        cur.execute("SELECT cnpj, geo_precisao, cd_setor, bairro, regional, zona, h3_9 IS NOT NULL FROM empresa_geo ORDER BY cnpj")
+        cur.execute(
+            "SELECT cnpj, geo_precisao, cd_setor, bairro, regional, zona, h3_9 IS NOT NULL FROM empresa_geo ORDER BY cnpj"
+        )
         assert cur.fetchall() == [
             ("11111111000101", "endereco", "410690205000001P", "CENTRO", "MATRIZ", "ZC", True),
             ("11111111000102", "logradouro", "410690205000001P", "CENTRO", "MATRIZ", "ZC", True),
@@ -110,15 +123,25 @@ def test_m0_completo(conn, ambiente):
             ("11111111000103", "C", False, None, None, None),
             ("33333333000101", None, True, "***.456.789-**", d(2020, 1, 15), d(2020, 1, 15)),
         ]
-        cur.execute("SELECT count(*) FROM empresa WHERE razao_social LIKE '%%12345678901%%' OR nome_fantasia LIKE '%%JOAO%%'")
+        cur.execute(
+            "SELECT count(*) FROM empresa WHERE razao_social LIKE '%%12345678901%%' OR nome_fantasia LIKE '%%JOAO%%'"
+        )
         assert cur.fetchone()[0] == 0
         cur.execute("SELECT fonte FROM execucao WHERE tipo = 'carga' ORDER BY id")
         assert [r[0] for r in cur.fetchall()] == [
-            "ibge_setores", "ippuc_bairro", "ippuc_regional", "ippuc_zoneamento", "ibge_cnefe", "rfb_cnpj",
-            "geocodificacao", "territorio"]
+            "ibge_setores",
+            "ippuc_bairro",
+            "ippuc_regional",
+            "ippuc_zoneamento",
+            "ibge_cnefe",
+            "rfb_cnpj",
+            "geocodificacao",
+            "territorio",
+        ]
         cur.execute("SELECT fonte, status FROM execucao WHERE tipo = 'etapa' ORDER BY id")
-        assert cur.fetchall() == [(e, "ok") for e in
-                                  ["schema", "setores", "ippuc", "cnefe", "cnpj", "geocodificar", "territorio"]]
+        assert cur.fetchall() == [
+            (e, "ok") for e in ["schema", "setores", "ippuc", "cnefe", "cnpj", "geocodificar", "territorio"]
+        ]
         cur.execute("SELECT count(DISTINCT run_id), count(*) FILTER (WHERE run_id IS NULL) FROM execucao")
         assert cur.fetchone() == (1, 0)
         cur.execute("SELECT count(*) FROM pg_namespace WHERE nspname = 'cwb'")
@@ -130,13 +153,15 @@ def test_m0_completo(conn, ambiente):
     conn.commit()
     m0.main(["--pular", "setores"])
     with conn.cursor() as cur:
-        cur.execute("SELECT (SELECT count(*) FROM empresa), (SELECT count(*) FROM bairro), (SELECT count(*) FROM cnefe)")
+        cur.execute(
+            "SELECT (SELECT count(*) FROM empresa), (SELECT count(*) FROM bairro), (SELECT count(*) FROM cnefe)"
+        )
         assert cur.fetchone() == (4, 1, 20)
 
 
 def test_etapa_com_erro_fica_registrada(conn, ambiente):
     (ambiente / "bruto" / "ibge_cnefe" / "4106902_CURITIBA.zip").write_bytes(b"isto nao e um zip")
-    with pytest.raises(Exception):
+    with pytest.raises(zipfile.BadZipFile):
         m0.main(["--so", "cnefe"])
     conn.commit()
     with conn.cursor() as cur:

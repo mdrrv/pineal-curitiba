@@ -5,17 +5,23 @@ PASSO = 0.00005  # ~5 m entre números vizinhos
 
 
 def cnefe(cur, cod, logradouro, numero, cep, lon, lat, estabelecimento=None, especie=1):
-    cur.execute("""
+    cur.execute(
+        """
         INSERT INTO cnefe (cod_unico, cep, logradouro, logr_chave, logr_completa, numero, especie,
                            estabelecimento, nome_chave, geom)
         VALUES (%s, %s, %s, norm_logradouro(%s), norm_logradouro_completa(%s), %s, %s, %s, norm_nome(%s),
                 ST_SetSRID(ST_MakePoint(%s, %s), 4326))
-    """, (cod, cep, logradouro, logradouro, logradouro, numero, especie, estabelecimento, estabelecimento, lon, lat))
+    """,
+        (cod, cep, logradouro, logradouro, logradouro, numero, especie, estabelecimento, estabelecimento, lon, lat),
+    )
 
 
 def empresa(cur, cnpj, logradouro, numero, cep, fantasia=None, bairro=None):
-    cur.execute("""INSERT INTO empresa (cnpj, situacao_cadastral, nome_fantasia, logradouro, numero, cep, bairro)
-                   VALUES (%s,'02',%s,%s,%s,%s,%s)""", (cnpj, fantasia, logradouro, numero, cep, bairro))
+    cur.execute(
+        """INSERT INTO empresa (cnpj, situacao_cadastral, nome_fantasia, logradouro, numero, cep, bairro)
+                   VALUES (%s,'02',%s,%s,%s,%s,%s)""",
+        (cnpj, fantasia, logradouro, numero, cep, bairro),
+    )
 
 
 def montar(conn):
@@ -25,8 +31,17 @@ def montar(conn):
             i += 1
             lat = LAT0 + (0.0001 if n % 2 else 0)
             cnefe(cur, f"a{i}", "RUA DOUTOR FAIVRE", n, "80060140", LON0 + (n - 100) * PASSO, lat)
-        cnefe(cur, "estab", "RUA DOUTOR FAIVRE", 300, "80060140", LON0 + 0.003, LAT0 + 0.0005,
-              estabelecimento="PADARIA PAO DOURADO", especie=6)
+        cnefe(
+            cur,
+            "estab",
+            "RUA DOUTOR FAIVRE",
+            300,
+            "80060140",
+            LON0 + 0.003,
+            LAT0 + 0.0005,
+            estabelecimento="PADARIA PAO DOURADO",
+            especie=6,
+        )
         for n in range(1, 60):
             i += 1
             cnefe(cur, f"b{i}", "RUA MARECHAL FLORIANO PEIXOTO", n, "80010130", LON0 + 0.01 + n * PASSO, LAT0)
@@ -37,18 +52,19 @@ def montar(conn):
         cur.execute(f"""INSERT INTO bairro (codigo, nome, geom) VALUES
             ('1', 'CENTRO', ST_Multi(ST_MakeEnvelope({LON0 + 0.05}, {LAT0}, {LON0 + 0.06}, {LAT0 + 0.01}, 4326)))""")
 
-        empresa(cur, "00000000000001", "R DR FAIVRE", "150", "80060140")        # endereco
+        empresa(cur, "00000000000001", "R DR FAIVRE", "150", "80060140")  # endereco
         empresa(cur, "00000000000002", "RUA DOUTOR FAIVRE", "150", "99999999")  # endereco_sem_cep
-        empresa(cur, "00000000000003", "R DR FAIVRE", "207", "80060140")        # numero_proximo (199)
-        empresa(cur, "00000000000004", "R DR FAIVRE", "S/N", "80060140")        # logradouro
+        empresa(cur, "00000000000003", "R DR FAIVRE", "207", "80060140")  # numero_proximo (199)
+        empresa(cur, "00000000000004", "R DR FAIVRE", "S/N", "80060140")  # logradouro
         empresa(cur, "00000000000005", "R MAL FLORIANO PEIXOT", "S/N", "80010130")  # logradouro_aproximado
-        empresa(cur, "00000000000006", "TV UNICA", "", None)                   # logradouro_sem_cep
-        empresa(cur, "00000000000007", "RUA INEXISTENTE", "10", "80060140")     # cep
-        empresa(cur, "00000000000008", "RUA INEXISTENTE", "10", None)           # nao_localizado
-        empresa(cur, "00000000000009", "R DR FAIVRE", "900", "80060140")        # longe demais: logradouro
-        empresa(cur, "00000000000010", "R DR FAIVRE", "999", "80060140",
-                fantasia="PADARIA PAO DOURADO LTDA")                            # estabelecimento
-        empresa(cur, "00000000000011", "R JOSE", "10", "99999999")              # não pode virar R. São José
+        empresa(cur, "00000000000006", "TV UNICA", "", None)  # logradouro_sem_cep
+        empresa(cur, "00000000000007", "RUA INEXISTENTE", "10", "80060140")  # cep
+        empresa(cur, "00000000000008", "RUA INEXISTENTE", "10", None)  # nao_localizado
+        empresa(cur, "00000000000009", "R DR FAIVRE", "900", "80060140")  # longe demais: logradouro
+        empresa(
+            cur, "00000000000010", "R DR FAIVRE", "999", "80060140", fantasia="PADARIA PAO DOURADO LTDA"
+        )  # estabelecimento
+        empresa(cur, "00000000000011", "R JOSE", "10", "99999999")  # não pode virar R. São José
         empresa(cur, "00000000000012", "RUA INEXISTENTE", "1", None, bairro="Centro")  # bairro
 
 
@@ -91,6 +107,7 @@ def test_resumo_e_relatorio(conn):
 
 def test_avaliacao_em_metros(conn):
     from etl import avaliar_geocodificacao
+
     montar(conn)
     linhas = avaliar_geocodificacao.avaliar(conn, amostra=20, semente="x")
     assert sum(r[1] for r in linhas) == 20
@@ -125,7 +142,9 @@ def test_desempate_na_divisa_e_sobreposicao(conn):
     """Ponto na divisa de dois bairros e dentro de duas zonas sobrepostas: sempre o mesmo resultado."""
     with conn.cursor() as cur:
         cur.execute("INSERT INTO empresa (cnpj) VALUES ('1')")
-        cur.execute(f"INSERT INTO empresa_geo (cnpj, geom) VALUES ('1', ST_SetSRID(ST_MakePoint({LON0}, {LAT0}), 4326))")
+        cur.execute(
+            f"INSERT INTO empresa_geo (cnpj, geom) VALUES ('1', ST_SetSRID(ST_MakePoint({LON0}, {LAT0}), 4326))"
+        )
         # dois bairros de mesma área que se tocam exatamente no ponto
         cur.execute(f"""INSERT INTO bairro (codigo, nome, geom) VALUES
             ('2', 'B', ST_Multi(ST_MakeEnvelope({LON0}, {LAT0 - 0.01}, {LON0 + 0.01}, {LAT0 + 0.01}, 4326))),

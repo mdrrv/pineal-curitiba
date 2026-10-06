@@ -58,11 +58,27 @@ def _inserir(conn, **campos) -> None:
         cur.execute(f"INSERT INTO execucao ({cols}) VALUES ({', '.join(['%s'] * len(campos))})", list(campos.values()))
 
 
-def registrar(conn, fonte: str, origem: str | None = None, arquivo: str | None = None,
-              sha256: str | None = None, linhas: int | None = None, **detalhes) -> None:
+def registrar(
+    conn,
+    fonte: str,
+    origem: str | None = None,
+    arquivo: str | None = None,
+    sha256: str | None = None,
+    linhas: int | None = None,
+    **detalhes,
+) -> None:
     """Registra uma carga bem-sucedida (vai junto com a transação dos dados)."""
-    _inserir(conn, run_id=config.RUN_ID, tipo="carga", fonte=fonte, origem=origem, arquivo=arquivo,
-             sha256=sha256, linhas=linhas, detalhes=detalhes or None)
+    _inserir(
+        conn,
+        run_id=config.RUN_ID,
+        tipo="carga",
+        fonte=fonte,
+        origem=origem,
+        arquivo=arquivo,
+        sha256=sha256,
+        linhas=linhas,
+        detalhes=detalhes or None,
+    )
 
 
 @contextmanager
@@ -82,8 +98,15 @@ def _registrar_etapa(nome: str, status: str, duracao: float, erro: str | None) -
     try:
         with conectar() as conn:
             criar_schema(conn)
-            _inserir(conn, run_id=config.RUN_ID, tipo="etapa", fonte=nome, status=status,
-                     duracao_s=round(duracao, 1), erro=erro)
+            _inserir(
+                conn,
+                run_id=config.RUN_ID,
+                tipo="etapa",
+                fonte=nome,
+                status=status,
+                duracao_s=round(duracao, 1),
+                erro=erro,
+            )
     except psycopg2.Error as e:
         log.error("não consegui registrar a etapa %s em execucao: %s", nome, e)
     log.info("etapa %s: %s em %.1f s", nome, status, duracao)

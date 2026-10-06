@@ -3,6 +3,7 @@
 Uso:
     python -m etl.territorio
 """
+
 import argparse
 import io
 import logging
@@ -49,8 +50,14 @@ def resumo(conn) -> str:
         geo, setor, bairro, regional, zona, h3_9 = cur.fetchone()
     base = geo or 1
     linhas = [("setor", setor), ("bairro", bairro), ("regional", regional), ("zona", zona), ("h3", h3_9)]
-    md = ["# Chave territorial", "", f"Empresas geocodificadas: {geo}", "",
-          "| camada | com chave | % das geocodificadas |", "|---|---:|---:|"]
+    md = [
+        "# Chave territorial",
+        "",
+        f"Empresas geocodificadas: {geo}",
+        "",
+        "| camada | com chave | % das geocodificadas |",
+        "|---|---:|---:|",
+    ]
     md += [f"| {c} | {v} | {100 * v / base:.1f} |" for c, v in linhas]
     md += ["", "Camada com 0% normalmente é camada ainda não carregada (ver `python -m etl.fontes.ippuc --listar`)."]
 
@@ -65,12 +72,21 @@ def resumo(conn) -> str:
         conc = {p: (n, iguais) for p, n, iguais in cur.fetchall()}
     if conc:
         from etl.geocodificar import ORDEM
-        md += ["", "## Bairro declarado à Receita × bairro calculado", "",
-               "Concordância por nível de geocodificação. Nível preciso com concordância baixa indica problema na",
-               "geocodificação; concordância baixa em todos os níveis indica nomes de bairro diferentes entre Receita",
-               "e IPPUC (o nível `bairro` fica de fora: ele usa o próprio bairro declarado).", "",
-               "| nível | com os dois bairros | iguais | % |", "|---|---:|---:|---:|"]
-        md += [f"| {p} | {conc[p][0]} | {conc[p][1]} | {100 * conc[p][1] / conc[p][0]:.1f} |" for p in ORDEM if p in conc]
+
+        md += [
+            "",
+            "## Bairro declarado à Receita × bairro calculado",
+            "",
+            "Concordância por nível de geocodificação. Nível preciso com concordância baixa indica problema na",
+            "geocodificação; concordância baixa em todos os níveis indica nomes de bairro diferentes entre Receita",
+            "e IPPUC (o nível `bairro` fica de fora: ele usa o próprio bairro declarado).",
+            "",
+            "| nível | com os dois bairros | iguais | % |",
+            "|---|---:|---:|---:|",
+        ]
+        md += [
+            f"| {p} | {conc[p][0]} | {conc[p][1]} | {100 * conc[p][1] / conc[p][0]:.1f} |" for p in ORDEM if p in conc
+        ]
     return "\n".join(md)
 
 

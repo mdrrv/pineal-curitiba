@@ -7,6 +7,7 @@ Uso:
 
 Etapas: schema, setores, ippuc, cnefe, cnpj, geocodificar, territorio
 """
+
 import argparse
 import logging
 

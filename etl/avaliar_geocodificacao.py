@@ -9,6 +9,7 @@ achado e o ponto verdadeiro dá o erro por nível. Como o próprio ponto some da
 pouco pior que o real dos CNPJs (cujo endereço costuma estar no CNEFE): é uma estimativa conservadora.
 Grava relatorios/erro_geocodificacao.md.
 """
+
 import argparse
 import logging
 
@@ -20,14 +21,17 @@ log = logging.getLogger("avaliar_geocodificacao")
 
 def avaliar(conn, amostra: int, semente: str) -> list[tuple]:
     with conn.cursor() as cur:
-        cur.execute("""
+        cur.execute(
+            """
             CREATE TEMP TABLE amostra ON COMMIT DROP AS
             SELECT cod_unico, cep, logradouro, numero, nome_chave, geom
             FROM cnefe
             WHERE cep IS NOT NULL AND numero IS NOT NULL AND logradouro IS NOT NULL
             ORDER BY md5(cod_unico || %s)
             LIMIT %s
-        """, (semente, amostra))
+        """,
+            (semente, amostra),
+        )
     geocodificar(
         conn,
         """SELECT cod_unico, cep, norm_logradouro(logradouro), norm_logradouro_completa(logradouro), numero,
@@ -50,17 +54,26 @@ def avaliar(conn, amostra: int, semente: str) -> list[tuple]:
 
 def relatorio(linhas: list[tuple], amostra: int) -> str:
     total = sum(r[1] for r in linhas) or 1
-    md = ["# Erro da geocodificação em metros", "",
-          f"Amostra: {amostra} endereços do CNEFE, cada um geocodificado sem o próprio ponto na base.", "",
-          "| nível | endereços | % | erro mediano (m) | p90 (m) | até 50 m | até 250 m |",
-          "|---|---:|---:|---:|---:|---:|---:|"]
+    md = [
+        "# Erro da geocodificação em metros",
+        "",
+        f"Amostra: {amostra} endereços do CNEFE, cada um geocodificado sem o próprio ponto na base.",
+        "",
+        "| nível | endereços | % | erro mediano (m) | p90 (m) | até 50 m | até 250 m |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    ]
     for p, n, med, p90, ate50, ate250 in linhas:
         if p == "nao_localizado":
             md.append(f"| {p} | {n} | {100 * n / total:.1f} | | | | |")
         else:
-            md.append(f"| {p} | {n} | {100 * n / total:.1f} | {med:.0f} | {p90:.0f} | "
-                      f"{100 * ate50:.0f}% | {100 * ate250:.0f}% |")
-    md += ["", "Use o p90 para decidir a menor escala em que cada nível entra numa análise (quadra, raio, setor, bairro)."]
+            md.append(
+                f"| {p} | {n} | {100 * n / total:.1f} | {med:.0f} | {p90:.0f} | "
+                f"{100 * ate50:.0f}% | {100 * ate250:.0f}% |"
+            )
+    md += [
+        "",
+        "Use o p90 para decidir a menor escala em que cada nível entra numa análise (quadra, raio, setor, bairro).",
+    ]
     return "\n".join(md)
 
 
@@ -75,8 +88,12 @@ def main(argv=None):
             raise SystemExit("cnefe vazio: rode antes python -m etl.fontes.ibge_cnefe")
         linhas = avaliar(conn, args.amostra, args.semente)
         conn.rollback()  # descarta as tabelas temporárias; só o registro abaixo fica no banco
-        db.registrar(conn, "avaliacao_geocodificacao", linhas=sum(r[1] for r in linhas),
-                     niveis={r[0]: {"n": r[1], "mediana_m": r[2], "p90_m": r[3]} for r in linhas})
+        db.registrar(
+            conn,
+            "avaliacao_geocodificacao",
+            linhas=sum(r[1] for r in linhas),
+            niveis={r[0]: {"n": r[1], "mediana_m": r[2], "p90_m": r[3]} for r in linhas},
+        )
     md = relatorio(linhas, args.amostra)
     config.RELATORIOS.mkdir(exist_ok=True)
     (config.RELATORIOS / "erro_geocodificacao.md").write_text(md, encoding="utf-8")

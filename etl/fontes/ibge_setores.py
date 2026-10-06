@@ -5,6 +5,7 @@ Uso:
 
 Sem --arquivo, acha o zip da UF na listagem do FTP do IBGE (url_diretorio + padrao_arquivo no catalogo.yaml).
 """
+
 import argparse
 import logging
 from pathlib import Path
@@ -42,7 +43,10 @@ def carregar(conn, caminho: Path, origem: str) -> int:
         raise ValueError(f"nenhum setor do município {config.COD_IBGE} em {caminho.name}")
 
     attrs = gdf.drop(columns=gdf.geometry.name)
-    linhas = [(str(a[col_setor]), geo._atributos(a), g.wkb) for a, g in zip(attrs.to_dict("records"), gdf.geometry)]
+    linhas = [
+        (str(a[col_setor]), geo._atributos(a), g.wkb)
+        for a, g in zip(attrs.to_dict("records"), gdf.geometry, strict=True)
+    ]
     with conn.cursor() as cur:
         cur.execute("TRUNCATE setor")
         execute_values(

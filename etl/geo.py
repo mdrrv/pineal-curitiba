@@ -1,4 +1,5 @@
 """Leitura de camadas vetoriais (shp, zip, gpkg, geojson) e gravação de polígonos no PostGIS."""
+
 import json
 import logging
 from pathlib import Path
@@ -46,7 +47,7 @@ def gravar_poligonos(conn, tabela: str, gdf: gpd.GeoDataFrame, campo_nome: str, 
     attrs = gdf.drop(columns=gdf.geometry.name)
     linhas = [
         (None if campo_codigo is None else _txt(a[campo_codigo]), _txt(a[campo_nome]), _atributos(a), g.wkb)
-        for a, g in zip(attrs.to_dict("records"), gdf.geometry)
+        for a, g in zip(attrs.to_dict("records"), gdf.geometry, strict=True)
     ]
     with conn.cursor() as cur:
         cur.execute(f"TRUNCATE {tabela}")

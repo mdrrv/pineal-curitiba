@@ -6,6 +6,7 @@ Uso:
 Sem --arquivo, acha o arquivo do município na listagem do FTP do IBGE (url_diretorio + padrao_arquivo).
 Aceita o arquivo do município ou o da UF inteira (filtra por COD_MUNICIPIO).
 """
+
 import argparse
 import csv
 import io
@@ -21,7 +22,20 @@ log = logging.getLogger("ibge_cnefe")
 FONTE = "ibge_cnefe"
 
 OBRIGATORIAS = ["COD_UNICO_ENDERECO", "COD_SETOR", "CEP", "NOM_SEGLOGR", "NUM_ENDERECO", "LATITUDE", "LONGITUDE"]
-SAIDA = ["cod_unico", "cd_setor", "cep", "tipo", "titulo", "nome", "numero", "lat", "lon", "especie", "estabelecimento", "nv_geo"]
+SAIDA = [
+    "cod_unico",
+    "cd_setor",
+    "cep",
+    "tipo",
+    "titulo",
+    "nome",
+    "numero",
+    "lat",
+    "lon",
+    "especie",
+    "estabelecimento",
+    "nv_geo",
+]
 
 
 def obter_arquivo(arquivo: str | None) -> tuple[Path, str]:
