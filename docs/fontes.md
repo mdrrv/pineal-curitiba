@@ -163,11 +163,22 @@ PM e Polícia Civil não têm base própria aberta: os registros das duas entram
 | CNES | Estabelecimentos de saúde com CNPJ | Setor de saúde privado e público |
 | ANP | Postos com CNPJ e preço | Concorrência no varejo de combustível |
 
+## 12. Cruzamentos e edificações (M2, scripts prontos)
+
+| Fonte | O que traz | Script |
+|---|---|---|
+| PNCP, TCE-PR, PGFN e sanções federais | Contratos públicos, dívida ativa e sanções por CNPJ, lidos das tabelas que o ETL da MINDATA já carrega | `etl/fontes/mindata_cruzamentos.py` |
+| Hierarquia da CNAE (IBGE) | Seção, divisão, grupo e classe de cada subclasse, para os agregados saírem legíveis | `etl/fontes/apoio.py` |
+| Overture Buildings | Edificações com altura e andares; agregadas em área construída por hexágono H3 | `etl/fontes/overture_edificacoes.py` |
+| INPI (planejado) | Marcas por CNPJ titular: empresa que investe em marca | acesso em lote a confirmar |
+| Simepar e INMET (planejado) | Chuva e temperatura diárias: sazonalidade do varejo | |
+
 ## Fora de propósito
 
 - Google Places e popular times: pagos e com termos que proíbem o uso.
 - Raspagem de portais imobiliários: termos de uso e LGPD.
 - Protestos: só por fornecedor pago.
+- Ookla Open Data: licença CC BY-NC, que proíbe uso comercial.
 - Dados de segurança, saúde ou benefícios por pessoa: entram sempre agregados.
 
 ---
