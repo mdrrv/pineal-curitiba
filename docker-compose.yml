@@ -1,0 +1,16 @@
+# PostGIS local opcional, para quem não tem Postgres com PostGIS instalado.
+#   docker compose up -d
+# Depois: PINEAL_DB_HOST=localhost PINEAL_DB_PORT=5433 PINEAL_DB_PASSWORD=pineal no .env
+services:
+  postgis:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: pineal
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: pineal
+    ports:
+      - "5433:5432"
+    volumes:
+      - pineal_pg:/var/lib/postgresql/data
+volumes:
+  pineal_pg:

@@ -1,0 +1,329 @@
+# Catálogo de fontes do Pineal Curitiba.
+#
+# status:   ativo (script pronto) | a_conferir (link/colunas a confirmar no primeiro download)
+#           | planejado (sem script ainda) | lai (só via pedido de acesso à informação) | convenio
+# fase:     M0 fundação | M1 prefeitura/IPPUC | M1-seg segurança | M1b listas com CNPJ | M2 contexto
+# chaves:   cnpj | cnpj_talvez (a confirmar) | end (endereço) | geo (coordenada) | terr (território agregado)
+#           | lote (indicação fiscal)
+#
+# Município: variáveis PINEAL_COD_IBGE, PINEAL_COD_RFB, PINEAL_NOME_MUNICIPIO e PINEAL_UF no .env.
+# O que o script usa: url, url_diretorio + padrao_arquivo, portal_chave, camadas. O resto documenta.
+
+fontes:
+
+  # ---------------------------------------------------------------- M0: fundação territorial
+
+  - id: ibge_setores
+    nome: Malha de setores censitários 2022
+    dono: IBGE
+    fase: M0
+    status: a_conferir
+    chaves: [geo]
+    formato: shp (zip por UF)
+    periodicidade: decenal
+    url_diretorio: https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_de_setores_censitarios__divisoes_intramunicipais/censo_2022/setores/shp/UF/
+    padrao_arquivo: '^PR_.*\.zip$'
+    script: etl/fontes/ibge_setores.py
+
+  - id: ibge_cnefe
+    nome: CNEFE 2022 (endereços com coordenada)
+    dono: IBGE
+    fase: M0
+    status: a_conferir
+    chaves: [end, geo]
+    formato: csv (zip por município)
+    periodicidade: decenal
+    url_diretorio: https://ftp.ibge.gov.br/Cadastro_Nacional_de_Enderecos_para_Fins_Estatisticos/Censo_Demografico_2022/Arquivos_CNEFE/CSV/Municipio/41_PR/
+    padrao_arquivo: '^4106902.*\.zip$'
+    script: etl/fontes/ibge_cnefe.py
+
+  - id: ippuc
+    nome: Base vetorial do IPPUC
+    dono: IPPUC
+    fase: M0
+    status: a_conferir
+    chaves: [geo, lote]
+    formato: shp/dxf
+    obs: >
+      Sem link direto estável conhecido. Baixar no site do IPPUC ou GeoCuritiba e colocar em
+      dados/bruto/ippuc/. Arruamento, quadras, lotes, hidrografia e parques ficam para o M2.
+    script: etl/fontes/ippuc.py
+    camadas:
+      bairro:
+        padrao_arquivo: 'bairro'
+        campo_nome: null      # null = detecta; ajuste depois de rodar --listar
+        campo_codigo: null
+        crs_padrao: 31982     # SIRGAS 2000 / UTM 22S, usado só se o arquivo vier sem .prj
+      regional:
+        padrao_arquivo: 'regiona'
+        campo_nome: null
+        campo_codigo: null
+        crs_padrao: 31982
+      zoneamento:
+        padrao_arquivo: 'zone|zona'
+        campo_nome: null
+        campo_codigo: null
+        crs_padrao: 31982
+
+  - id: rfb_cnpj
+    nome: Recorte de dados_rfb.cnpj_consolidado
+    dono: Receita Federal (ETL MINDATA)
+    fase: M0
+    status: ativo
+    chaves: [cnpj, end]
+    periodicidade: mensal
+    script: etl/fontes/cnpj_recorte.py
+
+  # ---------------------------------------------------------------- M1: Portal de Dados Abertos de Curitiba
+
+  - id: pmc_alvaras
+    nome: Base de Alvarás
+    dono: SMF (Planejamento, Finanças e Orçamento)
+    fase: M1
+    status: a_conferir
+    chaves: [end, cnpj_talvez]
+    portal_chave: be211e1f-cff5-44cb-9aaa-1be6b9ec3811
+    uso: cruzamento CNPJ x alvará (informalidade, ponto vago, atividade real, data de chegada ao endereço)
+
+  - id: pmc_licitacoes
+    nome: Licitações e Contratações
+    dono: SMATI
+    fase: M1
+    status: a_conferir
+    chaves: [cnpj]
+    portal_chave: c64c1152-97d0-4343-b0b6-42edb5cecef2
+    dicionario: https://mid-transparencia.curitiba.pr.gov.br/home/Dicionario_Licitacoes_Contratacoes_19082020.pdf
+
+  - id: pmc_licitacoes_covid
+    nome: Licitações e Contratações COVID-19
+    dono: SMATI
+    fase: M1
+    status: a_conferir
+    chaves: [cnpj]
+    portal_chave: 0f088a07-ea01-4639-93e8-7a22c05e94c6
+
+  - id: pmc_receitas_despesas
+    nome: Base de receitas e despesas
+    dono: SMF
+    fase: M1
+    status: a_conferir
+    chaves: [cnpj]
+    portal_chave: 5ddffbe8-313b-4d94-a862-73ab74b3817c
+    uso: favorecidos da despesa municipal; arrecadação de ISS, IPTU, ITBI
+
+  - id: pmc_saldos_orcamentarios
+    nome: Saldos orçamentários
+    dono: SMF
+    fase: M2
+    status: a_conferir
+    chaves: []
+    portal_chave: c6a3d46e-515e-4b75-9e48-81afe5f1164d
+
+  - id: pmc_siac156
+    nome: SIAC 156 (solicitações do cidadão)
+    dono: Secretaria do Governo Municipal
+    fase: M1
+    status: a_conferir
+    chaves: [end, terr]
+    portal_chave: 0d5a7b06-3940-4be9-876e-bc8f23e96530
+    uso: zeladoria por bairro
+
+  - id: pmc_sigmu
+    nome: SIGMU (manutenção urbana)
+    dono: Secretaria do Governo Municipal
+    fase: M1
+    status: a_conferir
+    chaves: [end, terr]
+    portal_chave: 236fb6f7-f2a0-4b04-99b3-5be5eb34672d
+
+  - id: pmc_sigesguarda
+    nome: SiGesGuarda (ocorrências da Guarda Municipal)
+    dono: SMDST
+    fase: M1-seg
+    status: a_conferir
+    chaves: [end, geo]
+    portal_chave: b16ead9d-835e-41e8-a4d7-dcc4f2b4b627
+    obs: estudos citam série de 2009 a 2022; conferir se segue atualizada
+
+  - id: pmc_unidades
+    nome: Unidades de Atendimento de Curitiba (ativas)
+    dono: IPPUC
+    fase: M1
+    status: a_conferir
+    chaves: [geo]
+    portal_chave: 680ed5ed-c8b7-4e81-a2af-637d2757027a
+    uso: polos de atração (UBS, escolas, Ruas da Cidadania, terminais)
+
+  - id: pmc_transporte
+    nome: Transporte Coletivo (GTFS, linhas, pontos, posição)
+    dono: URBS
+    fase: M1
+    status: a_conferir
+    chaves: [geo]
+    portal_chave: ca40f13b-ef61-472b-810f-dd705f85fd2e
+    obs: disponibilizado via webservice; precisa de chave da URBS
+
+  - id: pmc_esaude_medico
+    nome: E-Saúde, atendimento médico
+    dono: SMS
+    fase: M2
+    status: a_conferir
+    chaves: [terr]
+    portal_chave: 05954644-5595-4dcb-b961-1e31e22a1c6e
+
+  - id: pmc_esaude_enfermagem
+    nome: E-Saúde, atendimento de enfermagem
+    dono: SMS
+    fase: M2
+    status: a_conferir
+    chaves: [terr]
+    portal_chave: c7a68728-b197-45ed-82ad-e370072edaf8
+
+  - id: pmc_esaude_odonto
+    nome: E-Saúde, atendimento odontológico
+    dono: SMS
+    fase: M2
+    status: a_conferir
+    chaves: [terr]
+    portal_chave: afa9c22d-4fd7-407a-857b-1ab29fc305a3
+
+  - id: pmc_esaude_outros
+    nome: E-Saúde, outros profissionais de nível superior
+    dono: SMS
+    fase: M2
+    status: a_conferir
+    chaves: [terr]
+    portal_chave: 86794d1d-7e7d-4d10-b70c-1d79784965f0
+
+  - id: pmc_dengue
+    nome: Casos de dengue
+    dono: SMS
+    fase: M2
+    status: a_conferir
+    chaves: [terr]
+    portal_chave: 90ac3962-ee28-4bf5-9a65-036f04b53b32
+
+  - id: pmc_clique_economia
+    nome: Clique Economia (preços em supermercados)
+    dono: SMSAN
+    fase: M2
+    status: a_conferir
+    chaves: [cnpj_talvez, end]
+    portal_chave: 245ef1b9-f82a-42ed-a711-1dec4ccd4be1
+
+  - id: pmc_eventos
+    nome: Eventos PMC
+    dono: SMCS
+    fase: M2
+    status: a_conferir
+    chaves: [end]
+    portal_chave: 471e0496-6f97-4c20-a32f-76af61372584
+
+  - id: pmc_fcc
+    nome: Portal FCC (espaços culturais)
+    dono: Fundação Cultural de Curitiba
+    fase: M2
+    status: a_conferir
+    chaves: [end]
+    portal_chave: fd8602ca-da5b-44bf-b4be-fa5c3d21bb10
+
+  - id: pmc_fala_curitiba
+    nome: Fala Curitiba (consulta pública do orçamento)
+    dono: IMAP
+    fase: M2
+    status: a_conferir
+    chaves: [terr]
+    portal_chave: 540868f2-e7ba-4338-b5b3-9413e8b83311
+
+  - id: pmc_painel_obras
+    nome: Painel de Obras do Município
+    dono: SMOP
+    fase: M1
+    status: a_conferir
+    chaves: [cnpj, end]
+    obs: fora do portal de dados abertos; localizar endpoint do painel
+
+  - id: setran_autuacoes
+    nome: Autuações de trânsito por local (2019 em diante)
+    dono: Setran
+    fase: M1
+    status: a_conferir
+    chaves: [end]
+    uso: proxy de fluxo viário
+
+  # ---------------------------------------------------------------- M1-seg: segurança
+
+  - id: sesp_cape
+    nome: Estatísticas criminais do CAPE (BOU + SCOL)
+    dono: SESP-PR
+    fase: M1-seg
+    status: a_conferir
+    chaves: [terr]
+    url: https://www.seguranca.pr.gov.br/CAPE/Estatisticas
+    obs: relatórios trimestrais em PDF e BI. Se o BI não exportar, pedir série por bairro x natureza x mês via LAI
+
+  - id: cbmpr_ocorrencias
+    nome: Ocorrências do Corpo de Bombeiros (SYSBM)
+    dono: CBMPR
+    fase: M1-seg
+    status: lai
+    chaves: [terr]
+
+  - id: cbmpr_cvcb
+    nome: Certificados de Vistoria (CVCB / PREVFOGO)
+    dono: CBMPR
+    fase: M1-seg
+    status: lai
+    chaves: [cnpj, end]
+    uso: vistoria vencida ou reprovada como lead de prevenção de incêndio
+
+  - id: defesa_civil_pontos
+    nome: Pontos de alagamento, destelhamento e queda de árvore
+    dono: Defesa Civil de Curitiba / IPPUC
+    fase: M1-seg
+    status: lai
+    chaves: [geo]
+
+  - id: sinesp
+    nome: SINESP, ocorrências por município
+    dono: MJSP
+    fase: M2
+    status: a_conferir
+    chaves: [terr]
+    url: https://dados.mj.gov.br/dataset/sistema-nacional-de-estatisticas-de-seguranca-publica
+
+  # ---------------------------------------------------------------- M1b: listas com CNPJ
+
+  - {id: mdic_exportadoras, nome: "Empresas exportadoras e importadoras", dono: MDIC, fase: M1b, status: planejado, chaves: [cnpj]}
+  - {id: bndes_operacoes, nome: "Operações do BNDES", dono: BNDES, fase: M1b, status: planejado, chaves: [cnpj]}
+  - {id: ibama_ctf, nome: "Cadastro Técnico Federal", dono: IBAMA, fase: M1b, status: planejado, chaves: [cnpj]}
+  - {id: iat_licencas, nome: "Licenciamento ambiental", dono: IAT-PR, fase: M1b, status: planejado, chaves: [cnpj, end]}
+  - {id: cadastur, nome: "CADASTUR", dono: Ministério do Turismo, fase: M1b, status: planejado, chaves: [cnpj]}
+  - {id: anatel_scm, nome: "Provedores SCM e acessos", dono: ANATEL, fase: M1b, status: planejado, chaves: [cnpj, terr]}
+  - {id: mapa_sif, nome: "Estabelecimentos com SIF", dono: MAPA, fase: M1b, status: planejado, chaves: [cnpj, end]}
+  - {id: emec, nome: "Instituições e polos de ensino superior", dono: MEC, fase: M1b, status: planejado, chaves: [end]}
+  - {id: cnes, nome: "Estabelecimentos de saúde", dono: DATASUS, fase: M1b, status: planejado, chaves: [cnpj, end]}
+  - {id: anp_revendas, nome: "Postos e preços de combustível", dono: ANP, fase: M1b, status: planejado, chaves: [cnpj, end]}
+
+  # ---------------------------------------------------------------- M2: contexto
+
+  - {id: ibge_censo_setor, nome: "Censo 2022, agregados por setor", dono: IBGE, fase: M2, status: planejado, chaves: [terr]}
+  - {id: caged, nome: "Novo CAGED", dono: MTE, fase: M2, status: planejado, chaves: [terr]}
+  - {id: rais, nome: "RAIS", dono: MTE, fase: M2, status: planejado, chaves: [terr]}
+  - {id: inep_censo_escolar, nome: "Censo Escolar", dono: INEP, fase: M2, status: planejado, chaves: [geo]}
+  - {id: tse_eleitorado, nome: "Eleitorado por local de votação", dono: TSE, fase: M2, status: planejado, chaves: [end]}
+  - {id: ans_beneficiarios, nome: "Beneficiários de planos de saúde", dono: ANS, fase: M2, status: planejado, chaves: [terr]}
+  - {id: aneel_gd, nome: "Geração distribuída", dono: ANEEL, fase: M2, status: planejado, chaves: [terr]}
+  - {id: bcb_estban, nome: "ESTBAN e agências", dono: BCB, fase: M2, status: planejado, chaves: [end, terr]}
+  - {id: ipardes_bde, nome: "Base de Dados do Estado (BDEweb)", dono: IPARDES, fase: M2, status: planejado, chaves: [terr]}
+  - {id: jucepar_empresas_pr, nome: "Empresas PR (aberturas e fechamentos)", dono: JUCEPAR, fase: M2, status: planejado, chaves: [terr]}
+  - {id: osm_overture, nome: "OSM e Overture (vias e POIs)", dono: "OSM / Overture", fase: M2, status: planejado, chaves: [geo]}
+
+  # ---------------------------------------------------------------- pedidos via LAI (ver docs/pedidos-lai.md)
+
+  - {id: smf_iptu_cadastro, nome: "Cadastro imobiliário por lote (uso, área, padrão)", dono: "SMF / IPPUC", fase: M2, status: lai, chaves: [lote]}
+  - {id: smf_itbi, nome: "Transações de ITBI por quadra ou bairro", dono: SMF, fase: M2, status: lai, chaves: [lote, terr]}
+  - {id: smf_pgv, nome: "Planta Genérica de Valores vetorial", dono: "SMF / IPPUC", fase: M2, status: lai, chaves: [geo]}
+  - {id: smu_alvaras_construcao, nome: "Alvarás de construção", dono: SMU, fase: M2, status: lai, chaves: [lote]}
+  - {id: setran_estar, nome: "Áreas de EstaR", dono: Setran, fase: M2, status: lai, chaves: [geo]}
+  - {id: urbs_bilhetagem, nome: "Passageiros por linha, terminal e hora", dono: URBS, fase: M2, status: lai, chaves: [geo]}
