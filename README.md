@@ -136,11 +136,21 @@ O recorte de CNPJs usa `uf = PINEAL_UF AND (municipio = PINEAL_COD_RFB OR upper(
 ### 1. Inventário do portal da prefeitura (opcional, recomendado)
 
 ```bash
-python -m etl.fontes.portal_inventario            # só os links de download de cada base
-python -m etl.fontes.portal_inventario --baixar   # baixa e descreve colunas e preenchimento
+python -m etl.fontes.portal_inventario            # metadados, arquivos e colunas de cada base
+python -m etl.fontes.portal_inventario --baixar   # também baixa o mais recente e mede o preenchimento
 ```
 
-Gera `relatorios/inventario_portal.md`. É aqui que se confirma se a Base de Alvarás traz CNPJ, o que define o desenho do M1. O relatório mostra só nomes de colunas e porcentagem de preenchimento, nunca valores.
+Gera `relatorios/inventario_portal.md` e `.json`: frequência, última atualização, quantos arquivos mensais existem, o mais recente (URL, tamanho, dicionário de dados), as colunas e quais servem para cruzar (CNPJ, endereço, coordenada, data). O relatório mostra só nomes de colunas e porcentagem de preenchimento, nunca valores. A última versão está em [`docs/inventario-portal.md`](docs/inventario-portal.md).
+
+O portal guarda os arquivos em `mid-dadosabertos.curitiba.pr.gov.br` (último ano) e no espelho da UFPR `dadosabertos.c3sl.ufpr.br` (mais antigos). Os ETLs do M1 baixam de lá: libere esses hosts se a rede tiver lista de permissão.
+
+O que o inventário de outubro de 2026 mostrou:
+- **Base de Alvarás não tem CNPJ.** O cruzamento com as empresas é por CEP, endereço, nome empresarial ou fantasia e CNAE (ver [Rodando o M1](#rodando-o-m1)).
+- **Licitações e Contratações** têm `CNPJ/CPF` do fornecedor, valor e vigência do contrato.
+- **156 e SiGesGuarda** têm logradouro (sem número), bairro, regional, data e natureza: servem para agregados por bairro. O SiGesGuarda está atualizado (28 arquivos mensais).
+- **Unidades de Atendimento** têm rua, número e bairro, sem coordenada: são geocodificadas pelo mesmo núcleo dos CNPJs.
+- **Transporte coletivo** não tem arquivo no portal, só o webservice da URBS.
+- **E-Saúde** traz dados por atendimento, com data de nascimento e código do usuário: entra só agregado.
 
 ### 2. Camadas do IPPUC
 

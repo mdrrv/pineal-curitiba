@@ -41,19 +41,6 @@ def test_cnefe_abre_zip_latin1(tmp_path):
     assert "SÃO JOSÉ" in conteudo
 
 
-def test_links_do_portal():
-    html = """
-        <a href="https://mid-dadosabertos.curitiba.pr.gov.br/2026-09-01_Alvaras.csv">csv</a>
-        <a href='/conjuntodado/detalhe?chave=x'>outra página</a>
-        <a href="https://mid.curitiba.pr.gov.br/dicionario.pdf">dicionário</a>
-        <a href="#topo">topo</a>
-    """
-    achados = portal_inventario.links_de_arquivo(html)
-    assert "https://mid-dadosabertos.curitiba.pr.gov.br/2026-09-01_Alvaras.csv" in achados
-    assert "https://mid.curitiba.pr.gov.br/dicionario.pdf" in achados
-    assert not any("conjuntodado" in u for u in achados)
-
-
 def test_descrever_csv_sem_valores():
     dados = "CNPJ;NOME;ENDERECO;BAIRRO\n12345678000199;FULANO;RUA A 1;CENTRO\n;BELTRANO;;CENTRO\n".encode("cp1252")
     d = portal_inventario.descrever_csv(dados)

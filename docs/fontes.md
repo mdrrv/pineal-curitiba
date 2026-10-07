@@ -24,7 +24,7 @@ Portal: `dadosabertos.curitiba.pr.gov.br` (antigo `curitiba.pr.gov.br/dadosabert
 
 | Base | Conteúdo | Chave | Status | Uso no Pineal |
 |---|---|---|---|---|
-| Base de Alvarás | Alvarás de funcionamento: atividade, endereço, datas | `cnpj`? / `end` | ✅ | Cruzamento CNPJ × alvará: informalidade, ponto vago, atividade real, data de chegada ao endereço |
+| Base de Alvarás | Alvarás de funcionamento: nome empresarial e fantasia, início de atividade, endereço, CEP, CNAE principal e secundários, emissão e expiração | `end` / nome / CNAE (sem CNPJ) | ✅ | Cruzamento CNPJ × alvará: informalidade, ponto vago, atividade real, data de chegada ao endereço |
 | Licitações e Contratações | Compras regulares e emergenciais, com CNPJ/CPF do fornecedor | `cnpj` | ✅ | Fornecedores da prefeitura, fim de contrato como oportunidade (G4) |
 | Base de receitas e despesas | Execução orçamentária | `cnpj` (favorecido) | ✅ | Quanto cada empresa recebe do município |
 | SIAC 156 | Solicitações do cidadão: tipo, assunto, local | `end`/`terr` | ✅ | Zeladoria e problemas urbanos por bairro (iluminação, buraco, poda) |
@@ -42,7 +42,7 @@ Portal: `dadosabertos.curitiba.pr.gov.br` (antigo `curitiba.pr.gov.br/dadosabert
 | Portal FCC | Espaços culturais e Lei de Incentivo | `end` | ✅ | Polos culturais |
 | Relação de servidores | Cargos e encargos | n/a | ✅ | Baixo valor para B2B |
 
-O portal tem 32 conjuntos (levantamento de 06/10/2026). Os de interesse estão no `catalogo.yaml` com a `portal_chave`; o comando `python -m etl.fontes.portal_inventario --baixar` confere links, formato e colunas de cada um. Ficaram de fora, por não terem uso B2B: Aprendere, Estágio, Previdência municipal, Fila de Pretendentes (Cohab), Conecta Curitiba, Oficina de Música, Legisladoc, Saúde Já, Censo e Casos de COVID, Incentivo ao Esporte e Piso da Enfermagem.
+O portal tem 32 conjuntos (levantamento de 06/10/2026). O inventário de 07/10/2026, com colunas, frequência e arquivos de cada base, está em [`inventario-portal.md`](inventario-portal.md): a Base de Alvarás **não tem CNPJ** (cruzamento por endereço, nome e CNAE) e as Licitações têm CNPJ/CPF do fornecedor. Os de interesse estão no `catalogo.yaml` com a `portal_chave`; o comando `python -m etl.fontes.portal_inventario --baixar` confere links, formato e colunas de cada um. Ficaram de fora, por não terem uso B2B: Aprendere, Estágio, Previdência municipal, Fila de Pretendentes (Cohab), Conecta Curitiba, Oficina de Música, Legisladoc, Saúde Já, Censo e Casos de COVID, Incentivo ao Esporte e Piso da Enfermagem.
 
 ## 2. IPPUC: geografia oficial
 

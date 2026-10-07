@@ -1,10 +1,11 @@
 # Catálogo de fontes do Pineal Curitiba.
 #
-# status:   ativo (script pronto) | a_conferir (link/colunas a confirmar no primeiro download)
+# status:   ativo (script pronto) | inventariado (colunas e arquivos confirmados no portal; sem ETL ainda)
+#           | a_conferir (link/colunas a confirmar no primeiro download)
 #           | planejado (sem script ainda) | lai (só via pedido de acesso à informação) | convenio
 #           | fora (mapeada e descartada, com o motivo em obs)
 # fase:     M0 fundação | M1 prefeitura/IPPUC | M1-seg segurança | M1b listas com CNPJ | M2 contexto
-# chaves:   cnpj | cnpj_talvez (a confirmar) | end (endereço) | geo (coordenada) | terr (território agregado)
+# chaves:   cnpj | cnpj_talvez (a confirmar) | end (endereço) | nome | cnae | geo (coordenada) | terr (território agregado)
 #           | lote (indicação fiscal)
 #
 # Município: variáveis PINEAL_COD_IBGE, PINEAL_COD_RFB, PINEAL_NOME_MUNICIPIO e PINEAL_UF no .env.
@@ -112,53 +113,65 @@ fontes:
     nome: Base de Alvarás
     dono: SMF (Planejamento, Finanças e Orçamento)
     fase: M1
-    status: a_conferir
-    chaves: [end, cnpj_talvez]
+    status: inventariado
+    chaves: [end, nome, cnae]
     portal_chave: be211e1f-cff5-44cb-9aaa-1be6b9ec3811
     uso: cruzamento CNPJ x alvará (informalidade, ponto vago, atividade real, data de chegada ao endereço)
+    frequencia: mensal
+    obs: "sem CNPJ: cruzamento por CEP, endereço, nome empresarial/fantasia e CNAE. Colunas-chave: NOME_EMPRESARIAL, NOME_FANTASIA, INICIO_ATIVIDADE, NUMERO_DO_ALVARA, DATA_EMISSAO, DATA_EXPIRACAO, ENDERECO, NUMERO, BAIRRO, CEP, CNAE_ATIVIDADE_PRINCIPAL e 20 CNAE secundários. Arquivo mensal de ~540 MB"
 
   - id: pmc_licitacoes
     nome: Licitações e Contratações
     dono: SMATI
     fase: M1
-    status: a_conferir
+    status: inventariado
     chaves: [cnpj]
     portal_chave: c64c1152-97d0-4343-b0b6-42edb5cecef2
     dicionario: https://mid-transparencia.curitiba.pr.gov.br/home/Dicionario_Licitacoes_Contratacoes_19082020.pdf
+    frequencia: mensal
+    obs: "itens de processo com Contratato/Fornecedor, CNPJ/CPF, número e vigência do contrato, valor unitário e total"
 
   - id: pmc_licitacoes_covid
     nome: Licitações e Contratações COVID-19
     dono: SMATI
     fase: M1
-    status: a_conferir
+    status: inventariado
     chaves: [cnpj]
     portal_chave: 0f088a07-ea01-4639-93e8-7a22c05e94c6
+    frequencia: mensal
+    obs: "mesmo layout de pmc_licitacoes"
 
   - id: pmc_receitas_despesas
     nome: Base de receitas e despesas
     dono: SMF
     fase: M1
-    status: a_conferir
-    chaves: [cnpj]
+    status: inventariado
+    chaves: []
     portal_chave: 5ddffbe8-313b-4d94-a862-73ab74b3817c
     uso: favorecidos da despesa municipal; arrecadação de ISS, IPTU, ITBI
+    frequencia: mensal
+    obs: "receita por rubrica (ISS, IPTU, ITBI...) e data; CD_EMPRESA/NM_EMPRESA é o ente municipal, não CNPJ. Só agregado do município"
 
   - id: pmc_saldos_orcamentarios
     nome: Saldos orçamentários
     dono: SMF
     fase: M2
-    status: a_conferir
+    status: inventariado
     chaves: []
     portal_chave: c6a3d46e-515e-4b75-9e48-81afe5f1164d
+    frequencia: mensal
+    obs: "execução por órgão, função e programa; sem favorecido"
 
   - id: pmc_siac156
     nome: SIAC 156 (solicitações do cidadão)
     dono: Secretaria do Governo Municipal
     fase: M1
-    status: a_conferir
+    status: inventariado
     chaves: [end, terr]
     portal_chave: 0d5a7b06-3940-4be9-876e-bc8f23e96530
     uso: zeladoria por bairro
+    frequencia: diária
+    obs: "Tipo, Orgao, DataCriacao, Assunto, Subdivisao, Situacao, Logradouro (sem número), Bairro, Regional, DataResposta, Origem"
 
   - id: pmc_sigmu
     nome: SIGMU (manutenção urbana)
@@ -172,100 +185,122 @@ fontes:
     nome: SiGesGuarda (ocorrências da Guarda Municipal)
     dono: SMDST
     fase: M1-seg
-    status: a_conferir
-    chaves: [end, geo]
+    status: inventariado
+    chaves: [end, terr]
     portal_chave: b16ead9d-835e-41e8-a4d7-dcc4f2b4b627
-    obs: estudos citam série de 2009 a 2022; conferir se segue atualizada
+    frequencia: mensal
+    obs: "atualizado (28 arquivos mensais). Bairro, logradouro, naturezas 1 a 5, data, hora, regional, equipamento urbano"
 
   - id: pmc_unidades
     nome: Unidades de Atendimento de Curitiba (ativas)
     dono: IPPUC
     fase: M1
-    status: a_conferir
-    chaves: [geo]
+    status: inventariado
+    chaves: [end]
     portal_chave: 680ed5ed-c8b7-4e81-a2af-637d2757027a
     uso: polos de atração (UBS, escolas, Ruas da Cidadania, terminais)
+    frequencia: mensal
+    obs: "sem coordenada: NM_RUA, NUMERO_EQUI, NM_BAIRRO, NM_REGIONAL; tema, tipo e subtipo do equipamento, dependência administrativa, turnos"
 
   - id: pmc_transporte
     nome: Transporte Coletivo (GTFS, linhas, pontos, posição)
     dono: URBS
     fase: M1
-    status: a_conferir
+    status: inventariado
     chaves: [geo]
     portal_chave: ca40f13b-ef61-472b-810f-dd705f85fd2e
-    obs: disponibilizado via webservice; precisa de chave da URBS
+    frequencia: tempo real
+    obs: "sem arquivo no portal: só webservice da URBS (transporteservico.urbs.curitiba.pr.gov.br), com chave de acesso"
 
   - id: pmc_esaude_medico
     nome: E-Saúde, atendimento médico
     dono: SMS
     fase: M2
-    status: a_conferir
+    status: inventariado
     chaves: [terr]
     portal_chave: 05954644-5595-4dcb-b961-1e31e22a1c6e
+    frequencia: mensal
+    obs: "dado por atendimento, com data de nascimento e código do usuário: entra só agregado por bairro de residência e unidade"
 
   - id: pmc_esaude_enfermagem
     nome: E-Saúde, atendimento de enfermagem
     dono: SMS
     fase: M2
-    status: a_conferir
+    status: inventariado
     chaves: [terr]
     portal_chave: c7a68728-b197-45ed-82ad-e370072edaf8
+    frequencia: mensal
+    obs: "mesmo layout de pmc_esaude_medico"
 
   - id: pmc_esaude_odonto
     nome: E-Saúde, atendimento odontológico
     dono: SMS
     fase: M2
-    status: a_conferir
+    status: inventariado
     chaves: [terr]
     portal_chave: afa9c22d-4fd7-407a-857b-1ab29fc305a3
+    frequencia: mensal
+    obs: "mesmo layout de pmc_esaude_medico"
 
   - id: pmc_esaude_outros
     nome: E-Saúde, outros profissionais de nível superior
     dono: SMS
     fase: M2
-    status: a_conferir
+    status: inventariado
     chaves: [terr]
     portal_chave: 86794d1d-7e7d-4d10-b70c-1d79784965f0
+    frequencia: mensal
+    obs: "mesmo layout de pmc_esaude_medico"
 
   - id: pmc_dengue
     nome: Casos de dengue
     dono: SMS
     fase: M2
-    status: a_conferir
+    status: inventariado
     chaves: [terr]
     portal_chave: 90ac3962-ee28-4bf5-9a65-036f04b53b32
+    frequencia: mensal
+    obs: "caso notificado com bairro de residência, sexo, idade, classificação"
 
   - id: pmc_clique_economia
     nome: Clique Economia (preços em supermercados)
     dono: SMSAN
     fase: M2
-    status: a_conferir
-    chaves: [cnpj_talvez, end]
+    status: inventariado
+    chaves: [end]
     portal_chave: 245ef1b9-f82a-42ed-a711-1dec4ccd4be1
+    frequencia: diária
+    obs: "sem CNPJ: id_empresa, rede, endereco_completo, produto e preços"
 
   - id: pmc_eventos
     nome: Eventos PMC
     dono: SMCS
     fase: M2
-    status: a_conferir
-    chaves: [end]
+    status: inventariado
+    chaves: [end, terr]
     portal_chave: 471e0496-6f97-4c20-a32f-76af61372584
+    frequencia: diária
+    obs: "título, datas, local, endereço, bairro, regional"
 
   - id: pmc_fcc
     nome: Portal FCC (espaços culturais)
     dono: Fundação Cultural de Curitiba
     fase: M2
-    status: a_conferir
+    status: inventariado
     chaves: [end]
     portal_chave: fd8602ca-da5b-44bf-b4be-fa5c3d21bb10
+    frequencia: mensal
+    obs: "vários arquivos (núcleos, espaços); endereço por id"
 
   - id: pmc_fala_curitiba
     nome: Fala Curitiba (consulta pública do orçamento)
     dono: IMAP
     fase: M2
-    status: a_conferir
+    status: inventariado
     chaves: [terr]
     portal_chave: 540868f2-e7ba-4338-b5b3-9413e8b83311
+    frequencia: trimestral
+    obs: "arquivo pequeno; conferir conteúdo"
 
   - id: pmc_painel_obras
     nome: Painel de Obras do Município
