@@ -53,7 +53,7 @@ Funil de inteligência territorial B2B para Curitiba. Cruza a base de empresas d
 | **M2** Enriquecimento e indicadores | Perfil do ponto, domiciliação, histórico do ponto, redes, uso x zoneamento, saturação (QL), sobrevivência por coorte, densidade H3, movimentos mensais, raio-x, cruzamentos PNCP/TCE-PR/PGFN/sanções, edificações do Overture, exportação GeoParquet | **Pronto e testado com dados sintéticos** |
 | **M1** Prefeitura e IPPUC | Alvarás (cruzamento CNPJ × alvará), licitações, 156, SIGMU, unidades de atendimento, transporte (GTFS) | **Pronto e testado com arquivos sintéticos no layout real.** Painel de Obras e autuações da Setran sem fonte em arquivo (#22) |
 | M1-seg Segurança | SiGesGuarda (Guarda Municipal) e índice de risco por bairro; CAPE/SESP-PR, Bombeiros e Defesa Civil | **SiGesGuarda e índice prontos e testados.** CAPE, Bombeiros e Defesa Civil dependem da LAI (#14) e entram na mesma tabela |
-| M1b Listas com CNPJ | MDIC, BNDES, IBAMA, IAT, CADASTUR, ANATEL, MAPA, e-MEC, CNES, ANP | Planejado |
+| M1b Listas com CNPJ | MDIC, BNDES, IBAMA, IAT, CADASTUR, ANATEL, MAPA, e-MEC, CNES, ANP | **Leitor pronto e testado com arquivos sintéticos.** Layout de cada órgão a conferir na primeira carga real (arquivos baixados à mão em `dados/bruto/<lista>/`) |
 | M3 Plataforma | Publicação dos agregados no módulo Pineal | Planejado |
 
 ---
@@ -251,6 +251,7 @@ python -m etl.m1
 | `zeladoria` | `python -m etl.fontes.pmc_zeladoria` | 156 e SIGMU agregados por bairro, mês e assunto/serviço, com tempo de resposta |
 | `unidades` | `python -m etl.fontes.pmc_unidades` | Unidades de Atendimento geocodificadas (escolas, UBS, Ruas da Cidadania...) com H3 |
 | `transporte` | `python -m etl.fontes.urbs_gtfs [--arquivo gtfs.zip]` | Pontos de ônibus com linhas e partidas, e agregado por hexágono, a partir de um GTFS |
+| `listas` | `python -m etl.fontes.listas_cnpj [--so lista]` | Listas públicas com CNPJ (M1b) que estiverem em `dados/bruto/<lista>/`; grava `relatorios/listas_cnpj.md` |
 | `seguranca` | `python -m etl.fontes.pmc_sigesguarda [--arquivo ...]` | Ocorrências da Guarda Municipal, agregados por bairro, mês e hexágono, e o índice de risco por bairro; grava `relatorios/seguranca.md` |
 
 Os arquivos vêm do portal (o mais recente de cada base, achado pelo cliente `etl/portal.py`) ou de `dados/bruto/<fonte>/`, se você já tiver baixado.
@@ -316,6 +317,34 @@ O SiGesGuarda traz o fato, sem pessoa: código, data, hora, bairro, regional, ru
 | `seguranca_bairro_mes` | Ocorrências por fonte, bairro, mês e categoria (série completa) |
 | `seguranca_h3` | Ocorrências por hexágono e categoria na janela de 12 meses |
 | `risco_bairro`, `risco_bairro_indice` | Taxas, percentis e índice por bairro |
+
+### Listas com CNPJ (M1b)
+
+Listas federais e estaduais que dizem algo da empresa: exporta, tem crédito do BNDES, licença ambiental, inspeção federal, cadastro turístico, é provedor de internet, hospital ou posto. Os hosts desses órgãos mudam de endereço e de layout, então o download é manual: baixe o CSV na página do campo `url` do `catalogo.yaml` e coloque em `dados/bruto/<lista>/` (vários arquivos por lista são somados; zip com um CSV também serve; planilha `.xlsx`, salve como CSV).
+
+| Lista | Nível | Data | Valor | Rótulo |
+|---|---|---|---|---|
+| `mdic_exportadoras` | empresa | ano | | faixa de valor |
+| `bndes_operacoes` | empresa | contratação | soma do contratado | produto |
+| `ibama_ctf` | empresa | início da atividade | | categoria |
+| `iat_licencas` | estabelecimento | validade | | tipo de licença (pedido 12 da LAI se não houver arquivo) |
+| `cadastur` | estabelecimento | validade do certificado | | atividade |
+| `anatel_scm` | empresa | mês | soma dos acessos | tecnologia |
+| `mapa_sif` | estabelecimento | | | classificação |
+| `emec` | empresa (mantenedora) | início do funcionamento | | organização acadêmica |
+| `cnes` | estabelecimento | atualização | | tipo de unidade |
+| `anp_revendas` | estabelecimento | coleta | preço médio | produto |
+
+**Leitura tolerante.** A coluna do CNPJ, da data, do valor e do rótulo é a primeira que existir numa lista de nomes possíveis (`LISTAS` em `etl/fontes/listas_cnpj.py`); cabeçalho normalizado, separador e codificação detectados. O log diz qual coluna foi usada em cada arquivo. Se um órgão mudar o nome da coluna, acrescente o nome novo na lista.
+
+**Casamento.** O CNPJ passa pelo dígito verificador (zeros à esquerda perdidos numa planilha são repostos quando a coluna é só de CNPJ). Lista de estabelecimento casa pelo CNPJ igual; lista de empresa casa pela raiz e vale para todas as unidades de Curitiba. Só entram linhas de empresas do recorte.
+
+**LGPD.** Linha com CPF não entra. Colunas de CPF, e-mail, telefone, responsável, representante, sócio e contato não vão para `atributos`.
+
+| Tabela | Conteúdo |
+|---|---|
+| `lista_registro` | Linhas casadas: lista, arquivo, CNPJ (ou só a raiz), rótulo, data, valor e as demais colunas em `atributos` (jsonb) |
+| `empresa_lista` | Por CNPJ de Curitiba e lista: `via` (`cnpj` ou `raiz`), registros, valor, primeira e última data, até 5 rótulos |
 
 ---
 
@@ -384,6 +413,7 @@ No schema do Pineal (`cwb` por padrão):
 | `empresa_sinais`, `edificacao_h3` | Cruzamentos e edificações | |
 | `alvara*`, `contrato_pmc_item`, `siac156_*`, `sigmu_*`, `unidade_atendimento`, `onibus_*` | Bases da prefeitura (ver [Rodando o M1](#rodando-o-m1)) | |
 | `seguranca_*`, `risco_bairro*`, `natureza_categoria` | Segurança e índice de risco | |
+| `lista_registro`, `empresa_lista` | Listas com CNPJ (M1b) | |
 | `cnae`, `natureza_juridica`, `porte`, `situacao_cadastral`, `zona_regra` | Tabelas de apoio | |
 | `execucao` | Cada carga e cada etapa: `run_id`, `tipo`, `status`, `duracao_s`, `erro`, origem, arquivo, sha256, linhas | `id` |
 
@@ -523,7 +553,7 @@ pineal-curitiba/
 │   ├── fontes/                ibge_setores, ibge_cnefe, ippuc, cnpj_recorte, portal_inventario,
 │   │                          apoio, mindata_cruzamentos, overture_edificacoes, pmc_alvaras,
 │   │                          pmc_licitacoes, pmc_zeladoria, pmc_unidades, urbs_gtfs,
-│   │                          pmc_sigesguarda
+│   │                          pmc_sigesguarda, listas_cnpj
 │   ├── geocodificar.py, avaliar_geocodificacao.py, territorio.py
 │   ├── enriquecer.py, indicadores.py, exportar.py
 │   ├── portal.py, leitura.py  cliente do portal da prefeitura; leitura de CSV grande

@@ -380,16 +380,95 @@ fontes:
 
   # ---------------------------------------------------------------- M1b: listas com CNPJ
 
-  - {id: mdic_exportadoras, nome: "Empresas exportadoras e importadoras", dono: MDIC, fase: M1b, status: planejado, chaves: [cnpj]}
-  - {id: bndes_operacoes, nome: "Operações do BNDES", dono: BNDES, fase: M1b, status: planejado, chaves: [cnpj]}
-  - {id: ibama_ctf, nome: "Cadastro Técnico Federal", dono: IBAMA, fase: M1b, status: planejado, chaves: [cnpj]}
-  - {id: iat_licencas, nome: "Licenciamento ambiental", dono: IAT-PR, fase: M1b, status: planejado, chaves: [cnpj, end]}
-  - {id: cadastur, nome: "CADASTUR", dono: Ministério do Turismo, fase: M1b, status: planejado, chaves: [cnpj]}
-  - {id: anatel_scm, nome: "Provedores SCM e acessos", dono: ANATEL, fase: M1b, status: planejado, chaves: [cnpj, terr]}
-  - {id: mapa_sif, nome: "Estabelecimentos com SIF", dono: MAPA, fase: M1b, status: planejado, chaves: [cnpj, end]}
-  - {id: emec, nome: "Instituições e polos de ensino superior", dono: MEC, fase: M1b, status: planejado, chaves: [end]}
-  - {id: cnes, nome: "Estabelecimentos de saúde", dono: DATASUS, fase: M1b, status: planejado, chaves: [cnpj, end]}
-  - {id: anp_revendas, nome: "Postos e preços de combustível", dono: ANP, fase: M1b, status: planejado, chaves: [cnpj, end]}
+  - id: mdic_exportadoras
+    nome: "Empresas exportadoras e importadoras"
+    dono: MDIC
+    fase: M1b
+    status: a_conferir
+    chaves: [cnpj]
+    url: https://www.gov.br/mdic/pt-br/assuntos/comercio-exterior/estatisticas/empresas-brasileiras-exportadoras-e-importadoras
+    obs: "anual, planilha por ano e operação (salvar como CSV); traz faixa de valor FOB. ETL pronto (etl/fontes/listas_cnpj.py); layout a conferir na primeira carga real"
+
+  - id: bndes_operacoes
+    nome: "Operações do BNDES (diretas e indiretas automáticas)"
+    dono: BNDES
+    fase: M1b
+    status: a_conferir
+    chaves: [cnpj]
+    url: https://dadosabertos.bndes.gov.br/dataset/operacoes-financiamento
+    obs: "mensal; CNPJ do cliente, produto, valor e data da contratação. Cliente pessoa física não entra. ETL pronto (etl/fontes/listas_cnpj.py); layout a conferir na primeira carga real"
+
+  - id: ibama_ctf
+    nome: "Cadastro Técnico Federal (pessoas jurídicas)"
+    dono: IBAMA
+    fase: M1b
+    status: a_conferir
+    chaves: [cnpj]
+    url: https://dadosabertos.ibama.gov.br/dataset/pessoas-juridicas-inscritas-no-cadastro-tecnico-federal-ctf-app
+    obs: "categoria e atividade potencialmente poluidora. ETL pronto (etl/fontes/listas_cnpj.py); layout a conferir na primeira carga real"
+
+  - id: iat_licencas
+    nome: "Licenciamento ambiental"
+    dono: IAT-PR
+    fase: M1b
+    status: a_conferir
+    chaves: [cnpj, end]
+    url: https://www.iat.pr.gov.br/
+    obs: "sem arquivo aberto conhecido; se não houver, pedir via LAI (licença, atividade, validade). ETL pronto (etl/fontes/listas_cnpj.py); layout a conferir na primeira carga real"
+
+  - id: cadastur
+    nome: "CADASTUR (prestadores de serviços turísticos)"
+    dono: Ministério do Turismo
+    fase: M1b
+    status: a_conferir
+    chaves: [cnpj]
+    url: https://dados.gov.br/dados/conjuntos-dados/cadastur
+    obs: "hotéis, agências, eventos, transportadoras turísticas; guias (pessoa física) não entram. ETL pronto (etl/fontes/listas_cnpj.py); layout a conferir na primeira carga real"
+
+  - id: anatel_scm
+    nome: "Provedores SCM e acessos de banda larga fixa"
+    dono: ANATEL
+    fase: M1b
+    status: a_conferir
+    chaves: [cnpj, terr]
+    url: https://dadosabertos.anatel.gov.br/
+    obs: "acessos por prestadora, município e tecnologia; o ETL soma os acessos por raiz do CNPJ. ETL pronto (etl/fontes/listas_cnpj.py); layout a conferir na primeira carga real"
+
+  - id: mapa_sif
+    nome: "Estabelecimentos com SIF"
+    dono: MAPA
+    fase: M1b
+    status: a_conferir
+    chaves: [cnpj, end]
+    url: https://dados.agricultura.gov.br/
+    obs: "frigoríficos, laticínios e entrepostos sob inspeção federal. ETL pronto (etl/fontes/listas_cnpj.py); layout a conferir na primeira carga real"
+
+  - id: emec
+    nome: "Instituições de ensino superior (e-MEC)"
+    dono: MEC
+    fase: M1b
+    status: a_conferir
+    chaves: [cnpj, end]
+    url: https://dadosabertos.mec.gov.br/
+    obs: "CNPJ da mantenedora (casado pela raiz). ETL pronto (etl/fontes/listas_cnpj.py); layout a conferir na primeira carga real"
+
+  - id: cnes
+    nome: "Estabelecimentos de saúde (CNES)"
+    dono: DATASUS
+    fase: M1b
+    status: a_conferir
+    chaves: [cnpj, end]
+    url: https://opendatasus.saude.gov.br/dataset/cnes-cadastro-nacional-de-estabelecimentos-de-saude
+    obs: "tipo de unidade; estabelecimento com CPF (consultório) não entra. ETL pronto (etl/fontes/listas_cnpj.py); layout a conferir na primeira carga real"
+
+  - id: anp_revendas
+    nome: "Revendas e preços de combustível"
+    dono: ANP
+    fase: M1b
+    status: a_conferir
+    chaves: [cnpj, end]
+    url: https://www.gov.br/anp/pt-br/centrais-de-conteudo/dados-abertos/serie-historica-de-precos-de-combustiveis
+    obs: "série semestral de preços por revenda; o ETL guarda o preço médio por posto. ETL pronto (etl/fontes/listas_cnpj.py); layout a conferir na primeira carga real"
 
   # ---------------------------------------------------------------- M2: contexto
 

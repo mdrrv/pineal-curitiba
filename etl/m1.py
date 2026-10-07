@@ -5,13 +5,13 @@ Uso:
     python -m etl.m1 --so alvaras       # uma etapa (repetível)
     python -m etl.m1 --pular alvaras    # todas menos essa (repetível)
 
-Etapas: alvaras, licitacoes, zeladoria, unidades, transporte, seguranca
+Etapas: alvaras, licitacoes, zeladoria, unidades, transporte, seguranca, listas
 """
 
 import argparse
 import logging
 
-from etl.fontes import pmc_alvaras, pmc_licitacoes, pmc_sigesguarda, pmc_unidades, pmc_zeladoria, urbs_gtfs
+from etl.fontes import listas_cnpj, pmc_alvaras, pmc_licitacoes, pmc_sigesguarda, pmc_unidades, pmc_zeladoria, urbs_gtfs
 
 log = logging.getLogger("m1")
 
@@ -22,6 +22,7 @@ ETAPAS = {
     "unidades": lambda: pmc_unidades.main([]),
     "transporte": lambda: urbs_gtfs.main([]),
     "seguranca": lambda: pmc_sigesguarda.main([]),
+    "listas": lambda: listas_cnpj.main([]),
 }
 
 

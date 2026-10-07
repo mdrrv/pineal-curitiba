@@ -551,7 +551,7 @@ def test_m1_orquestrador(conn, ambiente):
     with conn.cursor() as cur:
         cur.execute("SELECT fonte, status FROM execucao WHERE tipo = 'etapa' ORDER BY id")
         assert cur.fetchall() == [
-            (e, "ok") for e in ["alvaras", "licitacoes", "zeladoria", "unidades", "transporte", "seguranca"]
+            (e, "ok") for e in ["alvaras", "licitacoes", "zeladoria", "unidades", "transporte", "seguranca", "listas"]
         ]
 
 

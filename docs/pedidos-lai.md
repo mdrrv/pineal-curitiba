@@ -56,10 +56,16 @@ Ordem sugerida, pelo valor para o produto: 1, 2, 7, 8, 4, 3, 6, 5, 9, 10, 11.
 
 > O conjunto "SiGesGuarda" do Portal de Dados Abertos de Curitiba traz as ocorrências atendidas pela Guarda Municipal. Solicito a série completa e atualizada até a data mais recente disponível, no mesmo formato publicado, e a informação sobre a periodicidade de atualização do conjunto.
 
-Enviar só se o inventário do portal mostrar que a série parou.
+**Não enviar.** O inventário de 07/10/2026 mostra a série atualizada (arquivo mensal de 01/10/2026, de 2023 até a extração), já carregada por `etl/fontes/pmc_sigesguarda.py`. Antes de 2023, o histórico está em dadosabertos.c3sl.ufpr.br/curitiba/Sigesguarda/.
 
 ## 11. Base vetorial do IPPUC
 
 > Solicito, em formato vetorial (shapefile ou GeoPackage), as seguintes camadas da base cartográfica de Curitiba: divisão de bairros, administrações regionais, zoneamento de uso e ocupação do solo vigente (Lei 15.511/2019 e alterações), eixos de logradouro com numeração predial, quadras e lotes com indicação fiscal.
 
 Enviar só se o download direto no site do IPPUC não estiver disponível.
+
+## 12. Licenças ambientais emitidas em Curitiba (IAT-PR)
+
+> Solicito, em formato aberto (CSV ou planilha), a relação das licenças ambientais e autorizações emitidas pelo Instituto Água e Terra para empreendimentos localizados no município de Curitiba nos últimos cinco anos e vigentes, com: CNPJ do empreendedor (pessoa jurídica), tipo de licença, atividade licenciada, endereço do empreendimento, data de emissão e data de validade. Não solicito dados de pessoas físicas.
+
+Enviar se não houver arquivo aberto no site do IAT. A resposta vai para `dados/bruto/iat_licencas/` e é lida por `etl/fontes/listas_cnpj.py` (licença perto do vencimento é lead para consultoria ambiental).

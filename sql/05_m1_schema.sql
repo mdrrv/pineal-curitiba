@@ -203,3 +203,37 @@ LANGUAGE sql STABLE PARALLEL SAFE SET search_path FROM CURRENT AS $$
         (SELECT categoria FROM natureza_categoria WHERE norm_txt(n) ~ padrao ORDER BY ordem LIMIT 1),
         CASE WHEN nullif(btrim(n), '') IS NOT NULL THEN 'outros' END)
 $$;
+
+-- Listas públicas com CNPJ (M1b). Só linhas de empresas do recorte; sem CPF, contato ou nome de pessoa.
+CREATE TABLE IF NOT EXISTS lista_spec (
+    lista   TEXT PRIMARY KEY,
+    nivel   TEXT NOT NULL,      -- estabelecimento (CNPJ igual) | empresa (mesma raiz)
+    agregar TEXT NOT NULL       -- soma | media (do valor)
+);
+
+CREATE TABLE IF NOT EXISTS lista_registro (
+    lista       TEXT NOT NULL,
+    arquivo     TEXT,
+    cnpj        VARCHAR(14),    -- nulo quando a lista só traz a raiz
+    cnpj_basico VARCHAR(8) NOT NULL,
+    rotulo      TEXT,
+    data        DATE,
+    valor       NUMERIC,
+    atributos   JSONB
+);
+CREATE INDEX IF NOT EXISTS lista_registro_lista ON lista_registro (lista);
+CREATE INDEX IF NOT EXISTS lista_registro_cnpj ON lista_registro (cnpj);
+CREATE INDEX IF NOT EXISTS lista_registro_basico ON lista_registro (cnpj_basico);
+
+CREATE TABLE IF NOT EXISTS empresa_lista (
+    cnpj        VARCHAR(14) NOT NULL,
+    lista       TEXT NOT NULL,
+    via         TEXT NOT NULL,  -- cnpj | raiz
+    registros   INT,
+    valor       NUMERIC,
+    data_min    DATE,
+    data_max    DATE,
+    rotulos     TEXT[],
+    PRIMARY KEY (cnpj, lista)
+);
+CREATE INDEX IF NOT EXISTS empresa_lista_lista ON empresa_lista (lista);
