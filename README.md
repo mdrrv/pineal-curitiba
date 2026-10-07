@@ -19,6 +19,7 @@ Funil de inteligência territorial B2B para Curitiba. Cruza a base de empresas d
 - [O que sai no banco](#o-que-sai-no-banco)
 - [Geocodificação: como ler os níveis](#geocodificação-como-ler-os-níveis)
 - [Catálogo de fontes](#catálogo-de-fontes)
+- [Publicação (M3)](#publicação-m3)
 - [Testes e CI](#testes-e-ci)
 - [Problemas comuns](#problemas-comuns)
 - [Estrutura do repositório](#estrutura-do-repositório)
@@ -54,7 +55,7 @@ Funil de inteligência territorial B2B para Curitiba. Cruza a base de empresas d
 | **M1** Prefeitura e IPPUC | Alvarás (cruzamento CNPJ × alvará), licitações, 156, SIGMU, unidades de atendimento, transporte (GTFS) | **Pronto e testado com arquivos sintéticos no layout real.** Painel de Obras e autuações da Setran sem fonte em arquivo (#22) |
 | M1-seg Segurança | SiGesGuarda (Guarda Municipal) e índice de risco por bairro; CAPE/SESP-PR, Bombeiros e Defesa Civil | **SiGesGuarda e índice prontos e testados.** CAPE, Bombeiros e Defesa Civil dependem da LAI (#14) e entram na mesma tabela |
 | M1b Listas com CNPJ | MDIC, BNDES, IBAMA, IAT, CADASTUR, ANATEL, MAPA, e-MEC, CNES, ANP | **Leitor pronto e testado com arquivos sintéticos.** Layout de cada órgão a conferir na primeira carga real (arquivos baixados à mão em `dados/bruto/<lista>/`) |
-| M3 Plataforma | Publicação dos agregados no módulo Pineal | Planejado |
+| M3 Plataforma | Publicação dos agregados no módulo Pineal | **Pacote de publicação pronto** (recorte sem dado pessoal, FlatGeobuf/Parquet, manifesto, PMTiles via tippecanoe). Integração com o módulo Pineal e PostGIS na VPS aguardam ok (#21) |
 
 ---
 
@@ -508,6 +509,27 @@ Limites: viaduto vira cruzamento na nodagem (para caminhada é aceitável); o te
 
 ---
 
+## Publicação (M3)
+
+A plataforma recebe só coordenadas, malhas e agregados. O pacote é gerado localmente e conferido antes de subir:
+
+```bash
+python -m etl.publicar                         # dados/publicar/<data>/: camadas + manifesto.json
+scripts/pmtiles.sh dados/publicar/<data>       # pineal.pmtiles para o MapLibre (precisa do tippecanoe)
+```
+
+| Camada | Arquivo | Conteúdo |
+|---|---|---|
+| `empresas` | `.fgb` | Ponto de empresa ativa, pessoa jurídica, não MEI, com localização de quadra: CNPJ, divisão, CNAE, porte, ano de abertura, precisão, bairro, H3, score e risco |
+| `densidade_h3` | `.fgb` | Hexágono r9: ativos e ativos por divisão (JSON) |
+| `demanda_h3` | `.fgb` | Hexágono r9: moradores, domicílios, crianças, idosos, renda |
+| `seguranca_h3` | `.fgb` | Hexágono r9: ocorrências em 12 meses e por categoria (JSON) |
+| `onibus_h3` | `.fgb` | Hexágono r9: pontos, linhas, partidas |
+| `bairros` | `.fgb` | Bairro: ativos, moradores, índices de risco |
+| `saturacao_bairro`, `espaco_livre` | `.parquet` | Tabelas por bairro e atividade |
+
+Regras do recorte: MEI e CNPJ de pessoa física aparecem só nos agregados (o ponto pode ser a casa da pessoa). Nenhuma coluna de nome, razão social, CPF, contato ou endereço por extenso; `etl/publicar.py` recusa o pacote se encontrar coluna proibida ou um CPF em qualquer texto. Camada sem as tabelas de origem fica de fora, com o motivo em `manifesto.json` (que também traz linhas, colunas, sha256 e a data da base).
+
 ## O que sai no banco
 
 No schema do Pineal (`cwb` por padrão):
@@ -682,8 +704,10 @@ pineal-curitiba/
 │   ├── enriquecer.py, indicadores.py, exportar.py
 │   ├── isocronas.py           isócronas a pé e de ônibus
 │   ├── score.py               risco de fechamento, validação e score de lead
+│   ├── publicar.py            pacote de publicação para a plataforma (M3)
 │   ├── portal.py, leitura.py  cliente do portal da prefeitura; leitura de CSV grande
 │   └── m0.py, m1.py, m2.py    orquestradores
+├── scripts/pmtiles.sh         camadas do pacote de publicação -> PMTiles (tippecanoe)
 ├── tests/
 ├── dados/                     arquivos baixados e exportados (fora do git)
 └── relatorios/                relatórios gerados (fora do git)
