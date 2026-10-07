@@ -83,7 +83,9 @@ def cenario(conn):
         cur.execute(f"""INSERT INTO bairro (codigo, nome, geom) VALUES
             ('1', 'CENTRO', ST_Multi(ST_MakeEnvelope({LON0 - 0.005}, {LAT0 - 0.005}, {LON0 + 0.0009}, {LAT0 + 0.005}, 4326))),
             ('2', 'BATEL', ST_Multi(ST_MakeEnvelope({LON0 + 0.0009}, {LAT0 - 0.005}, {LON0 + 0.006}, {LAT0 + 0.005}, 4326)))""")
-    territorio.gravar_h3(conn)
+    territorio.calcular_h3(conn)  # só o H3: o cenário já traz bairro e zona escritos à mão
+    with conn.cursor() as cur:
+        cur.execute("UPDATE empresa_geo g SET h3_8 = c.h3_8, h3_9 = c.h3_9 FROM h3_carga c WHERE g.cnpj = c.cnpj")
     conn.commit()
     return conn
 

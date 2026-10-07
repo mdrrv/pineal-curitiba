@@ -17,7 +17,8 @@ log = logging.getLogger("territorio")
 LOTE = 50_000
 
 
-def gravar_h3(conn) -> int:
+def calcular_h3(conn) -> int:
+    """Índices H3 de cada ponto na tabela temporária h3_carga; sql/20_territorio.sql grava junto com o resto."""
     n = 0
     with conn.cursor(name="pontos") as leitura, conn.cursor() as escrita:
         escrita.execute("CREATE TEMP TABLE h3_carga (cnpj VARCHAR(14), h3_8 TEXT, h3_9 TEXT) ON COMMIT DROP")
@@ -33,10 +34,7 @@ def gravar_h3(conn) -> int:
             buf.seek(0)
             escrita.copy_expert("COPY h3_carga FROM STDIN", buf)
             n += len(lote)
-        escrita.execute("""
-            UPDATE empresa_geo g SET h3_8 = c.h3_8, h3_9 = c.h3_9
-            FROM h3_carga c WHERE g.cnpj = c.cnpj
-        """)
+        escrita.execute("ANALYZE h3_carga")
     return n
 
 
@@ -94,9 +92,9 @@ def main(argv=None):
     argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args(argv)
     with db.etapa("territorio"), db.conectar() as conn:
         db.criar_schema(conn)
-        db.executar_sql(conn, "20_territorio.sql")
-        n = gravar_h3(conn)
+        n = calcular_h3(conn)
         log.info("h3 calculado para %d empresas", n)
+        db.executar_sql(conn, "20_territorio.sql")
         md = resumo(conn)
         db.registrar(conn, "territorio", linhas=n)
     config.RELATORIOS.mkdir(exist_ok=True)

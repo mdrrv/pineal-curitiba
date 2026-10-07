@@ -125,8 +125,8 @@ def test_territorio(conn):
         cur.execute("DELETE FROM bairro")
         cur.execute(f"INSERT INTO setor (cd_setor, geom) VALUES ('410690205000001', {caixa})")
         cur.execute(f"INSERT INTO bairro (codigo, nome, geom) VALUES ('1', 'CENTRO', {caixa})")
+    assert territorio.calcular_h3(conn) == 10
     db.executar_sql(conn, "20_territorio.sql")
-    assert territorio.gravar_h3(conn) == 10
     with conn.cursor() as cur:
         cur.execute("SELECT cd_setor, bairro, regional, h3_8, h3_9 FROM empresa_geo WHERE cnpj = '00000000000001'")
         setor, bairro, regional, h3_8, h3_9 = cur.fetchone()
@@ -154,6 +154,7 @@ def test_desempate_na_divisa_e_sobreposicao(conn):
             ('ZR', 'GRANDE', ST_Multi(ST_MakeEnvelope({LON0 - 0.1}, {LAT0 - 0.1}, {LON0 + 0.1}, {LAT0 + 0.1}, 4326))),
             ('ZC', 'PEQUENA', ST_Multi(ST_MakeEnvelope({LON0 - 0.001}, {LAT0 - 0.001}, {LON0 + 0.001}, {LAT0 + 0.001}, 4326)))""")
     resultados = set()
+    territorio.calcular_h3(conn)
     for _ in range(3):
         db.executar_sql(conn, "20_territorio.sql")
         with conn.cursor() as cur:

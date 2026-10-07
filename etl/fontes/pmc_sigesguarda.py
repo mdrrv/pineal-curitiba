@@ -59,41 +59,48 @@ INSERIR = f"""
     INSERT INTO seguranca_ocorrencia (fonte, codigo, data, hora, bairro, regional, logradouro, naturezas,
                                       categorias, defesa_civil, equipamento_urbano, flagrante)
     SELECT %s, f.codigo, data_br(f.data), x.hora,
-           coalesce((SELECT b.nome FROM bairro b WHERE norm_txt(b.nome) = norm_txt(f.bairro) LIMIT 1),
-                    NULLIF(upper(btrim(f.bairro)), '')),
+           coalesce(bn.nome, NULLIF(upper(btrim(f.bairro)), '')),
            NULLIF(upper(btrim(f.regional)), ''), NULLIF(btrim(f.logradouro), ''), n.naturezas,
            NULLIF(ARRAY(SELECT DISTINCT c FROM (
-                     SELECT categoria_natureza(u) AS c FROM unnest(n.naturezas) u
+                     SELECT nc.categoria AS c FROM unnest(n.naturezas) u JOIN _nat_cat nc ON nc.natureza = u
                      UNION ALL SELECT 'fisico' WHERE n.defesa_civil) t
                  WHERE c IS NOT NULL ORDER BY c), '{{}}'),
            coalesce(n.defesa_civil, false), NULLIF(btrim(f.equipamento), ''), {SIM.format(c="f.flagrante")}
     FROM fato f
     LEFT JOIN nat n USING (codigo)
+    LEFT JOIN _bairro_nome bn ON bn.chave = norm_txt(f.bairro)
     CROSS JOIN LATERAL (SELECT {HORA.format(c="f.hora")} AS h) h0
     CROSS JOIN LATERAL (SELECT CASE WHEN h0.h BETWEEN 0 AND 23 THEN h0.h END AS hora) x
 """
 
 LOCALIZAR = """
-    CREATE TEMP TABLE _par ON COMMIT DROP AS
-    SELECT DISTINCT coalesce(norm_logradouro_completa(logradouro), '') AS lc, coalesce(norm_txt(bairro), '') AS bc,
-           NULL::TEXT AS nivel, NULL::geometry(Point, 4326) AS geom, NULL::TEXT AS h3_9
+    CREATE TEMP TABLE _oc ON COMMIT DROP AS
+    SELECT codigo, coalesce(norm_logradouro_completa(logradouro), '') AS lc, coalesce(norm_txt(bairro), '') AS bc
     FROM seguranca_ocorrencia WHERE fonte = %(fonte)s;
+
+    CREATE TEMP TABLE _par ON COMMIT DROP AS
+    SELECT DISTINCT lc, bc, NULL::TEXT AS nivel, NULL::geometry(Point, 4326) AS geom, NULL::TEXT AS h3_9 FROM _oc;
 
     CREATE TEMP TABLE _bp ON COMMIT DROP AS
     SELECT DISTINCT ON (norm_txt(nome)) norm_txt(nome) AS bc, geom FROM bairro ORDER BY norm_txt(nome), ST_Area(geom) DESC;
 
+    -- endereços do CNEFE de cada rua dentro do bairro, o centro deles e o endereço mais perto do centro,
+    -- tudo em conjunto (com subconsulta por par eram duas varreduras do CNEFE por par)
+    CREATE TEMP TABLE _pts ON COMMIT DROP AS
+    SELECT p.lc, p.bc, c.geom
+    FROM _par p
+    JOIN _bp b USING (bc)
+    JOIN cnefe c ON c.logr_completa = p.lc AND ST_Intersects(b.geom, c.geom)
+    WHERE p.lc <> '';
+
     UPDATE _par p SET geom = x.geom, nivel = 'logradouro_no_bairro'
     FROM (
-        SELECT p2.lc, p2.bc, (
-            SELECT c.geom FROM cnefe c
-            WHERE c.logr_completa = p2.lc AND ST_Intersects(b.geom, c.geom)
-            ORDER BY c.geom <-> (SELECT ST_Centroid(ST_Collect(c2.geom)) FROM cnefe c2
-                                 WHERE c2.logr_completa = p2.lc AND ST_Intersects(b.geom, c2.geom))
-            LIMIT 1) AS geom
-        FROM _par p2 JOIN _bp b ON b.bc = p2.bc
-        WHERE p2.lc <> ''
+        SELECT DISTINCT ON (t.lc, t.bc) t.lc, t.bc, t.geom
+        FROM _pts t
+        JOIN (SELECT lc, bc, ST_Centroid(ST_Collect(geom)) AS centro FROM _pts GROUP BY 1, 2) m USING (lc, bc)
+        ORDER BY t.lc, t.bc, t.geom <-> m.centro, ST_X(t.geom), ST_Y(t.geom)
     ) x
-    WHERE x.lc = p.lc AND x.bc = p.bc AND x.geom IS NOT NULL;
+    WHERE x.lc = p.lc AND x.bc = p.bc;
 
     UPDATE _par p SET geom = ST_PointOnSurface(b.geom), nivel = 'bairro'
     FROM _bp b WHERE p.nivel IS NULL AND b.bc = p.bc;
@@ -106,9 +113,18 @@ def carregar(conn, caminho) -> int:
     leitura.copiar_para_temp(conn, caminho, "sg", COLUNAS, OBRIGATORIAS)
     with conn.cursor() as cur:
         cur.execute("DELETE FROM seguranca_ocorrencia WHERE fonte = %s", (FONTE,))
+        # uma vez por valor distinto (e não por linha): nome do bairro do IPPUC e categoria de cada natureza
+        cur.execute("""
+            CREATE TEMP TABLE _bairro_nome ON COMMIT DROP AS
+            SELECT DISTINCT ON (norm_txt(nome)) norm_txt(nome) AS chave, nome FROM bairro ORDER BY norm_txt(nome), nome;
+            CREATE TEMP TABLE _nat_cat ON COMMIT DROP AS
+            SELECT natureza, categoria_natureza(natureza) AS categoria
+            FROM (SELECT DISTINCT btrim(n) AS natureza FROM sg, unnest(ARRAY[n1, n2, n3, n4, n5]) n
+                  WHERE NULLIF(btrim(n), '') IS NOT NULL) x;
+        """)
         cur.execute(INSERIR, (FONTE,))
         n = cur.rowcount
-        cur.execute("DROP TABLE sg")
+        cur.execute("DROP TABLE sg, _bairro_nome, _nat_cat")
     return n
 
 
@@ -122,13 +138,12 @@ def localizar(conn, fonte: str) -> None:
         cur.execute(
             """
             UPDATE seguranca_ocorrencia o SET geo_precisao = p.nivel, geom = p.geom, h3_9 = p.h3_9
-            FROM _par p
-            WHERE o.fonte = %s AND p.lc = coalesce(norm_logradouro_completa(o.logradouro), '')
-              AND p.bc = coalesce(norm_txt(o.bairro), '')
+            FROM _oc x JOIN _par p USING (lc, bc)
+            WHERE o.fonte = %s AND o.codigo = x.codigo
             """,
             (fonte,),
         )
-        cur.execute("DROP TABLE _par, _bp")
+        cur.execute("DROP TABLE _par, _bp, _oc, _pts")
 
 
 def resumo(conn) -> str:

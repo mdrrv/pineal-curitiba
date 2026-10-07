@@ -17,7 +17,14 @@ TRUNCATE alvara_cnpj;
 CREATE TABLE IF NOT EXISTS empresa_perfil (cnpj VARCHAR(14) PRIMARY KEY, tipo_ponto TEXT, domiciliacao BOOLEAN);
 
 -- os dois lados normalizados uma vez só, em tabelas com índice (em CTE o planejador chamaria as funções de
--- normalização a cada par comparado)
+-- normalização a cada par comparado).
+CREATE TEMP TABLE _alv ON COMMIT DROP AS
+SELECT a.numero_alvara, a.cep, a.logr_chave, a.numero_int, n.nome_chave AS nome_emp,
+       norm_nome(a.nome_fantasia) AS fantasia, a.cnae_principal, a.inicio_atividade
+FROM alvara a LEFT JOIN alvara_nome n USING (numero_alvara)
+WHERE a.cep IS NOT NULL AND a.logr_chave IS NOT NULL;
+ANALYZE _alv;
+
 CREATE TEMP TABLE _emp ON COMMIT DROP AS
 SELECT e.cnpj, norm_cep(e.cep) AS cep, norm_logradouro(e.logradouro) AS logr_chave,
        norm_numero(e.numero) AS numero, norm_nome(e.razao_social) AS razao, norm_nome(e.nome_fantasia) AS fantasia,
@@ -26,13 +33,9 @@ FROM empresa e;
 CREATE INDEX ON _emp (cep, logr_chave);
 ANALYZE _emp;
 
-CREATE TEMP TABLE _alv ON COMMIT DROP AS
-SELECT a.numero_alvara, a.cep, a.logr_chave, a.numero_int, n.nome_chave AS nome_emp,
-       norm_nome(a.nome_fantasia) AS fantasia, a.cnae_principal, a.inicio_atividade
-FROM alvara a LEFT JOIN alvara_nome n USING (numero_alvara)
-WHERE a.cep IS NOT NULL AND a.logr_chave IS NOT NULL;
-ANALYZE _alv;
-
+-- Só vira candidato o par que ainda pode chegar a 0,5: na mesma rua sem CNAE nem data iguais o máximo é
+-- 0,5 x 1 x 0,8 = 0,4, então o par precisa do mesmo número, do mesmo CNAE ou da mesma data de início.
+-- Corta a maior parte dos pares (todas as empresas da rua contra todos os alvarás da rua) sem mudar o resultado.
 CREATE TEMP TABLE _cand ON COMMIT DROP AS
 SELECT a.numero_alvara, e.cnpj,
        CASE WHEN a.numero_int IS NOT DISTINCT FROM e.numero AND a.numero_int IS NOT NULL
@@ -42,7 +45,8 @@ SELECT a.numero_alvara, e.cnpj,
        a.cnae_principal = e.cnae AS cnae_igual,
        a.inicio_atividade = e.inicio AS inicio_igual
 FROM _alv a
-JOIN _emp e ON e.cep = a.cep AND e.logr_chave = a.logr_chave;
+JOIN _emp e ON e.cep = a.cep AND e.logr_chave = a.logr_chave
+WHERE a.numero_int = e.numero OR a.cnae_principal = e.cnae OR a.inicio_atividade = e.inicio;
 
 CREATE TEMP TABLE _pont ON COMMIT DROP AS
 SELECT *, round(((0.5 * nome_sim + 0.25 * coalesce(cnae_igual, false)::INT + 0.25 * coalesce(inicio_igual, false)::INT)

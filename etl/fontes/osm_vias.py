@@ -133,6 +133,7 @@ def marcar_principal(conn) -> tuple[int, int]:
             [(n,) for n in pai if raiz(n) == maior],
             page_size=5000,
         )
+        cur.execute("ANALYZE via_no")  # sem isso o planejador acha que quase nada é principal e abandona o índice
     return tamanho[maior], len(tamanho)
 
 
