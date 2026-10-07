@@ -528,7 +528,10 @@ def test_unidades_e_transporte(conn, ambiente):
     urbs_gtfs.main([])
     with conn.cursor() as cur:
         cur.execute("SELECT codigo, turnos, geo_precisao, h3_9 IS NOT NULL FROM unidade_atendimento ORDER BY 1")
-        assert cur.fetchall() == [("1", "manha,tarde", "endereco_sem_cep", True), ("2", "manha", "nao_localizado", False)]
+        assert cur.fetchall() == [
+            ("1", "manha,tarde", "endereco_sem_cep", True),
+            ("2", "manha", "nao_localizado", False),
+        ]
         cur.execute("SELECT stop_id, linhas, partidas FROM onibus_ponto ORDER BY 1")
         assert cur.fetchall() == [("S1", 2, 3), ("S2", 1, 1)]
         cur.execute("SELECT sum(pontos), sum(partidas) FROM onibus_h3")
