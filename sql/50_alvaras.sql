@@ -16,18 +16,24 @@ TRUNCATE alvara_cnpj;
 -- sem o enriquecimento rodado, os sinais saem sem tipo de ponto nem domiciliação
 CREATE TABLE IF NOT EXISTS empresa_perfil (cnpj VARCHAR(14) PRIMARY KEY, tipo_ponto TEXT, domiciliacao BOOLEAN);
 
+-- os dois lados normalizados uma vez só, em tabelas com índice (em CTE o planejador chamaria as funções de
+-- normalização a cada par comparado)
+CREATE TEMP TABLE _emp ON COMMIT DROP AS
+SELECT e.cnpj, norm_cep(e.cep) AS cep, norm_logradouro(e.logradouro) AS logr_chave,
+       norm_numero(e.numero) AS numero, norm_nome(e.razao_social) AS razao, norm_nome(e.nome_fantasia) AS fantasia,
+       e.cnae_fiscal_principal AS cnae, e.data_inicio_atividade AS inicio
+FROM empresa e;
+CREATE INDEX ON _emp (cep, logr_chave);
+ANALYZE _emp;
+
+CREATE TEMP TABLE _alv ON COMMIT DROP AS
+SELECT a.numero_alvara, a.cep, a.logr_chave, a.numero_int, n.nome_chave AS nome_emp,
+       norm_nome(a.nome_fantasia) AS fantasia, a.cnae_principal, a.inicio_atividade
+FROM alvara a LEFT JOIN alvara_nome n USING (numero_alvara)
+WHERE a.cep IS NOT NULL AND a.logr_chave IS NOT NULL;
+ANALYZE _alv;
+
 CREATE TEMP TABLE _cand ON COMMIT DROP AS
-WITH emp AS (
-    SELECT e.cnpj, norm_cep(e.cep) AS cep, norm_logradouro(e.logradouro) AS logr_chave,
-           norm_numero(e.numero) AS numero, norm_nome(e.razao_social) AS razao, norm_nome(e.nome_fantasia) AS fantasia,
-           e.cnae_fiscal_principal AS cnae, e.data_inicio_atividade AS inicio
-    FROM empresa e
-), alv AS (
-    SELECT a.numero_alvara, a.cep, a.logr_chave, a.numero_int, n.nome_chave AS nome_emp,
-           norm_nome(a.nome_fantasia) AS fantasia, a.cnae_principal, a.inicio_atividade
-    FROM alvara a LEFT JOIN alvara_nome n USING (numero_alvara)
-    WHERE a.cep IS NOT NULL AND a.logr_chave IS NOT NULL
-)
 SELECT a.numero_alvara, e.cnpj,
        CASE WHEN a.numero_int IS NOT DISTINCT FROM e.numero AND a.numero_int IS NOT NULL
             THEN 'mesmo_endereco' ELSE 'mesma_rua' END AS metodo,
@@ -35,8 +41,8 @@ SELECT a.numero_alvara, e.cnpj,
                 coalesce(similarity(a.fantasia, e.razao), 0), coalesce(similarity(a.fantasia, e.fantasia), 0)) AS nome_sim,
        a.cnae_principal = e.cnae AS cnae_igual,
        a.inicio_atividade = e.inicio AS inicio_igual
-FROM alv a
-JOIN emp e ON e.cep = a.cep AND e.logr_chave = a.logr_chave;
+FROM _alv a
+JOIN _emp e ON e.cep = a.cep AND e.logr_chave = a.logr_chave;
 
 CREATE TEMP TABLE _pont ON COMMIT DROP AS
 SELECT *, round(((0.5 * nome_sim + 0.25 * coalesce(cnae_igual, false)::INT + 0.25 * coalesce(inicio_igual, false)::INT)

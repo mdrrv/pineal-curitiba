@@ -209,6 +209,8 @@ def calcular(
     if origem is None:
         raise SystemExit("sem nó no componente principal da rede")
     no0, d0 = origem
+    if d0 > 300:
+        log.warning("o ponto está a %.0f m da rede mais próxima: confira lat/lon (fora da cidade?)", d0)
     limite_max = max(minutos) * VELOCIDADE
     origens = {no0: d0}
     rotulo_saida = None
