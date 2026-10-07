@@ -192,7 +192,7 @@ fontes:
     nome: SiGesGuarda (ocorrências da Guarda Municipal)
     dono: SMDST
     fase: M1-seg
-    status: inventariado
+    status: ativo
     chaves: [end, terr]
     portal_chave: b16ead9d-835e-41e8-a4d7-dcc4f2b4b627
     frequencia: mensal

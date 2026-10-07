@@ -31,7 +31,7 @@ Portal: `dadosabertos.curitiba.pr.gov.br` (antigo `curitiba.pr.gov.br/dadosabert
 | Transporte Coletivo | GTFS, linhas, pontos, itinerários, posição dos veículos, horários | `geo` | ✅ | Acessibilidade, fluxo potencial por ponto de ônibus, isócronas por transporte público |
 | Unidades de Atendimento (ativas) | Equipamentos públicos municipais, estaduais, federais e privados, com coordenadas | `geo` | ✅ | Polos de atração (UBS, escolas, Ruas da Cidadania, terminais) |
 | E-Saúde: atendimentos | Atendimentos médicos e odontológicos nas unidades municipais | `terr` (unidade) | ✅ | Demanda de saúde por região: perfil etário, CID, volume |
-| Guarda Municipal (SiGesGuarda) | Ocorrências atendidas (estudos citam jan/2009 a mar/2022) | `end`/`geo` | ✅ (atualização a conferir) | Risco por quadra e bairro |
+| Guarda Municipal (SiGesGuarda) | Ocorrências atendidas de 2023 até a extração, arquivo mensal | `end`/`terr` | ✅ carregado (`etl/fontes/pmc_sigesguarda.py`) | Índice de risco por bairro (`risco_bairro_indice`) e agregado por hexágono |
 | Clique Economia | Preços de cerca de 750 itens em supermercados médios e grandes | `cnpj`/`end` | ✅ | Preço por bairro e rede, posicionamento do varejo alimentar |
 | Casos de dengue / Censo COVID-dengue | Casos por bairro | `terr` | ✅ | Contexto de saúde pública |
 | Eventos PMC | Agenda de eventos e festivais | `geo`/`end` | ✅ | Fluxo pontual em áreas comerciais |

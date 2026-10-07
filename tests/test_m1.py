@@ -545,8 +545,141 @@ def test_m1_orquestrador(conn, ambiente):
     arquivos_m1(ambiente / "bruto")
     (ambiente / "bruto" / "pmc_alvaras").mkdir(parents=True)
     csv_alvaras(ambiente / "bruto" / "pmc_alvaras")
+    csv_sigesguarda(ambiente / "bruto")
     m1.main([])
     assert db.contar(conn, "SELECT count(*) FROM alvara") == 6
     with conn.cursor() as cur:
         cur.execute("SELECT fonte, status FROM execucao WHERE tipo = 'etapa' ORDER BY id")
-        assert cur.fetchall() == [(e, "ok") for e in ["alvaras", "licitacoes", "zeladoria", "unidades", "transporte"]]
+        assert cur.fetchall() == [
+            (e, "ok") for e in ["alvaras", "licitacoes", "zeladoria", "unidades", "transporte", "seguranca"]
+        ]
+
+
+CAB_SIGES = [
+    "ATENDIMENTO_BAIRRO_NOME",
+    "EQUIPAMENTO_URBANO_NOME",
+    "FLAG_EQUIPAMENTO_URBANO",
+    "FLAG_FLAGRANTE",
+    "LOGRADOURO_NOME",
+    *[
+        f"{p}{i}_{s}"
+        for i in range(1, 6)
+        for p, s in [("NATUREZA", "DEFESA_CIVIL"), ("NATUREZA", "DESCRICAO"), ("SUBCATEGORIA", "DESCRICAO")]
+    ],
+    "OCORRENCIA_ANO",
+    "OCORRENCIA_CODIGO",
+    "OCORRENCIA_DATA",
+    "OCORRENCIA_DIA_SEMANA",
+    "OCORRENCIA_HORA",
+    "OCORRENCIA_MES",
+    "REGIONAL_FATO_NOME",
+    "NUMERO_PROTOCOLO_156",
+]
+
+
+def csv_sigesguarda(bruto):
+    def linha(codigo, data, hora, bairro, logr, naturezas, flagrante="N"):
+        r = dict.fromkeys(CAB_SIGES, "")
+        r.update(
+            ATENDIMENTO_BAIRRO_NOME=bairro,
+            LOGRADOURO_NOME=logr,
+            OCORRENCIA_CODIGO=codigo,
+            OCORRENCIA_DATA=data,
+            OCORRENCIA_HORA=hora,
+            FLAG_FLAGRANTE=flagrante,
+            REGIONAL_FATO_NOME="MATRIZ",
+        )
+        for i, (n, dc) in enumerate(naturezas, 1):
+            r[f"NATUREZA{i}_DESCRICAO"], r[f"NATUREZA{i}_DEFESA_CIVIL"] = n, dc
+        return [r[c] for c in CAB_SIGES]
+
+    escrever(
+        bruto / "pmc_sigesguarda" / "2026-10-01_sigesguarda_-_Base_de_Dados.csv",
+        CAB_SIGES,
+        [
+            linha("1", "15/09/2026", "14:30:00", "CENTRO", "R. Dr. Faivre", [("Furto", "N"), ("Dano", "N")], "S"),
+            linha("1", "15/09/2026", "14:30:00", "CENTRO", "R. Dr. Faivre", [("Roubo", "N")]),
+            linha("2", "2026-08-01", "08", "Batel", "Rua Inexistente", [("Queda de árvore", "S")]),
+            linha("3", "01/01/2024", "23:10", "CENTRO", "R. Dr. Faivre", [("Perturbação do sossego", "N")]),
+            linha("", "10/09/2026", "99", "XYZ", "", [("Apoio a outros órgãos", "N")]),
+        ],
+    )
+
+
+def test_seguranca(conn, ambiente):
+    import datetime
+
+    from etl.fontes import pmc_sigesguarda
+
+    montar(conn)
+    with conn.cursor() as cur:
+        for nome, x0, x1 in [("Centro", -0.001, 0.0005), ("Batel", 0.0005, 0.002)]:
+            cur.execute(
+                "INSERT INTO bairro (codigo, nome, geom) VALUES (%s, %s, ST_Multi(ST_MakeEnvelope(%s, %s, %s, %s, 4326)))",
+                (nome[0], nome, LON0 + x0, LAT0 - 0.001, LON0 + x1, LAT0 + 0.001),
+            )
+        cur.execute(
+            "INSERT INTO empresa_geo (cnpj, bairro) VALUES ('11111111000101', 'Centro'), ('44444444000101', 'Centro')"
+        )
+    conn.commit()
+    csv_sigesguarda(ambiente / "bruto")
+    pmc_sigesguarda.main([])
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT codigo, data, hora, bairro, naturezas, categorias, defesa_civil, flagrante, geo_precisao,
+                   round(ST_X(geom)::NUMERIC, 4), h3_9 IS NOT NULL
+            FROM seguranca_ocorrencia WHERE length(codigo) < 5 ORDER BY codigo
+        """)
+        r = cur.fetchall()
+        assert r[0] == (
+            "1",
+            datetime.date(2026, 9, 15),
+            14,
+            "Centro",
+            ["Dano", "Furto", "Roubo"],
+            ["patrimonial", "violento"],
+            False,
+            True,
+            "logradouro_no_bairro",
+            round(__import__("decimal").Decimal(LON0 + 0.0002), 4),
+            True,
+        )
+        assert r[1][1:9] == (
+            datetime.date(2026, 8, 1),
+            8,
+            "Batel",
+            ["Queda de árvore"],
+            ["fisico"],
+            True,
+            False,
+            "bairro",
+        )
+        assert r[2][2] == 23 and r[2][5] == ["ordem_publica"]
+        cur.execute("SELECT hora, bairro, categorias, geo_precisao FROM seguranca_ocorrencia WHERE length(codigo) = 32")
+        assert cur.fetchall() == [(None, "XYZ", ["outros"], "nao_localizado")]
+
+        cur.execute("SELECT bairro, patrimonial, violento, fisico, indice FROM risco_bairro_indice ORDER BY 1")
+        D = __import__("decimal").Decimal
+        assert cur.fetchall() == [
+            ("Batel", D("0.0"), D("0.0"), D("100.0"), D("33.3")),
+            ("Centro", D("100.0"), D("100.0"), D("0.0"), D("66.7")),
+        ]
+        cur.execute(
+            "SELECT ocorrencias_12m, empresas_ativas, por_mil_empresas, janela_inicio, janela_fim FROM risco_bairro WHERE bairro = 'Centro' AND categoria = 'patrimonial'"
+        )
+        assert cur.fetchone() == (1, 2, D("500.00"), datetime.date(2025, 10, 1), datetime.date(2026, 9, 30))
+        cur.execute(
+            "SELECT count(*) FROM risco_bairro WHERE bairro = 'Centro' AND categoria = 'ordem_publica' AND ocorrencias_12m = 0"
+        )
+        assert cur.fetchone()[0] == 1
+        cur.execute(
+            "SELECT mes, categoria, ocorrencias FROM seguranca_bairro_mes WHERE bairro = 'Centro' ORDER BY 1, 2"
+        )
+        assert cur.fetchall() == [
+            (datetime.date(2024, 1, 1), "ordem_publica", 1),
+            (datetime.date(2026, 9, 1), "patrimonial", 1),
+            (datetime.date(2026, 9, 1), "violento", 1),
+        ]
+        cur.execute("SELECT sum(ocorrencias_12m) FROM seguranca_h3")
+        assert cur.fetchone()[0] == 3
+    assert (ambiente / "relatorios" / "seguranca.md").exists()

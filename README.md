@@ -52,7 +52,7 @@ Funil de inteligência territorial B2B para Curitiba. Cruza a base de empresas d
 | **M0** Fundação territorial | Setores IBGE, camadas IPPUC, CNEFE, recorte de CNPJs, geocodificação em 10 níveis com erro medido em metros, chave territorial | **Pronto e testado com dados sintéticos.** Falta a primeira rodada com dados reais |
 | **M2** Enriquecimento e indicadores | Perfil do ponto, domiciliação, histórico do ponto, redes, uso x zoneamento, saturação (QL), sobrevivência por coorte, densidade H3, movimentos mensais, raio-x, cruzamentos PNCP/TCE-PR/PGFN/sanções, edificações do Overture, exportação GeoParquet | **Pronto e testado com dados sintéticos** |
 | **M1** Prefeitura e IPPUC | Alvarás (cruzamento CNPJ × alvará), licitações, 156, SIGMU, unidades de atendimento, transporte (GTFS) | **Pronto e testado com arquivos sintéticos no layout real.** Painel de Obras e autuações da Setran sem fonte em arquivo (#22) |
-| M1-seg Segurança | CAPE/SESP-PR, Guarda Municipal, Bombeiros, Defesa Civil | Pedidos via LAI em rascunho |
+| M1-seg Segurança | SiGesGuarda (Guarda Municipal) e índice de risco por bairro; CAPE/SESP-PR, Bombeiros e Defesa Civil | **SiGesGuarda e índice prontos e testados.** CAPE, Bombeiros e Defesa Civil dependem da LAI (#14) e entram na mesma tabela |
 | M1b Listas com CNPJ | MDIC, BNDES, IBAMA, IAT, CADASTUR, ANATEL, MAPA, e-MEC, CNES, ANP | Planejado |
 | M3 Plataforma | Publicação dos agregados no módulo Pineal | Planejado |
 
@@ -251,6 +251,7 @@ python -m etl.m1
 | `zeladoria` | `python -m etl.fontes.pmc_zeladoria` | 156 e SIGMU agregados por bairro, mês e assunto/serviço, com tempo de resposta |
 | `unidades` | `python -m etl.fontes.pmc_unidades` | Unidades de Atendimento geocodificadas (escolas, UBS, Ruas da Cidadania...) com H3 |
 | `transporte` | `python -m etl.fontes.urbs_gtfs [--arquivo gtfs.zip]` | Pontos de ônibus com linhas e partidas, e agregado por hexágono, a partir de um GTFS |
+| `seguranca` | `python -m etl.fontes.pmc_sigesguarda [--arquivo ...]` | Ocorrências da Guarda Municipal, agregados por bairro, mês e hexágono, e o índice de risco por bairro; grava `relatorios/seguranca.md` |
 
 Os arquivos vêm do portal (o mais recente de cada base, achado pelo cliente `etl/portal.py`) ou de `dados/bruto/<fonte>/`, se você já tiver baixado.
 
@@ -285,6 +286,36 @@ Para refazer o cruzamento depois de atualizar o M0, rode `python -m etl.m1 --so 
 | `sigmu_bairro_mes` | Pedidos de manutenção urbana por bairro, mês e serviço, com quantos foram realizados e o tempo mediano | Da SIGMU só entram `SERVICO_SOLICITADO` e `SERVICO_TAB`; texto livre e solicitante ficam de fora |
 | `unidade_atendimento` | Equipamentos públicos e privados com tema, tipo, dependência administrativa, turnos e localização | Sem CEP na base: geocodificação pelos níveis sem CEP |
 | `onibus_ponto`, `onibus_h3` | Pontos de ônibus com número de linhas e de partidas no feed; soma por hexágono | O portal não publica arquivo do transporte: o ETL lê um GTFS em `dados/bruto/urbs_gtfs/` (ver pedido 6 em `docs/pedidos-lai.md`) |
+
+### Segurança e índice de risco
+
+O SiGesGuarda traz o fato, sem pessoa: código, data, hora, bairro, regional, rua (sem número), até cinco naturezas, marca de defesa civil, equipamento urbano e flagrante. Linhas repetidas do mesmo código viram uma ocorrência com todas as naturezas.
+
+**Categorias.** Cada natureza vira uma categoria pela tabela `natureza_categoria` (regex sobre o texto normalizado, o primeiro padrão por `ordem` vence). Ocorrência com marca de defesa civil também conta como `fisico`. A tabela é editável e a carga não sobrescreve linhas alteradas; `relatorios/seguranca.md` lista as naturezas que caíram em `outros` para ajustar.
+
+| Categoria | Exemplos |
+|---|---|
+| `violento` | roubo, assalto, agressão, lesão corporal, ameaça, arma, briga |
+| `patrimonial` | furto, arrombamento, dano, depredação, pichação, invasão |
+| `fisico` | alagamento, destelhamento, queda de árvore, incêndio, deslizamento |
+| `transito` | acidente, atropelamento, colisão |
+| `ordem_publica` | perturbação do sossego, drogas, ambulante, desordem |
+
+**Localização.** Sem número, o ponto é o endereço do CNEFE mais perto do centro da rua dentro do bairro (`logradouro_no_bairro`). Sem a rua no bairro, fica o ponto do bairro (`bairro`), que não entra em análise por hexágono com a mesma confiança.
+
+**Índice.** Janela de 12 meses que termina no último mês com dado. Por bairro do IPPUC e categoria, `risco_bairro` guarda ocorrências, área, empresas ativas, taxa por km², taxa por mil empresas ativas e o percentil entre os bairros (0 a 100):
+
+- `patrimonial` usa a taxa por mil empresas ativas (risco para o comércio estabelecido);
+- as demais usam a taxa por km², até o Censo por setor entrar (#16) e dar a taxa por habitante.
+
+`risco_bairro_indice` junta os percentis de patrimonial, violento e físico e o `indice` (média dos três). Tudo é agregado por território. A coluna `fonte` de `seguranca_ocorrencia` recebe CAPE, Bombeiros e Defesa Civil quando os pedidos de LAI forem respondidos, e o índice passa a somar as fontes sem mudar.
+
+| Tabela | Conteúdo |
+|---|---|
+| `seguranca_ocorrencia` | Uma linha por ocorrência e fonte: data, hora, bairro, rua, naturezas, categorias, localização, `h3_9` |
+| `seguranca_bairro_mes` | Ocorrências por fonte, bairro, mês e categoria (série completa) |
+| `seguranca_h3` | Ocorrências por hexágono e categoria na janela de 12 meses |
+| `risco_bairro`, `risco_bairro_indice` | Taxas, percentis e índice por bairro |
 
 ---
 
@@ -351,6 +382,8 @@ No schema do Pineal (`cwb` por padrão):
 | `empresa_perfil`, `ponto_comercial`, `uso_zoneamento` | Enriquecimento (ver [Rodando o M2](#rodando-o-m2)) | |
 | `m2_*`, `raio_x()` | Indicadores do M2 | |
 | `empresa_sinais`, `edificacao_h3` | Cruzamentos e edificações | |
+| `alvara*`, `contrato_pmc_item`, `siac156_*`, `sigmu_*`, `unidade_atendimento`, `onibus_*` | Bases da prefeitura (ver [Rodando o M1](#rodando-o-m1)) | |
+| `seguranca_*`, `risco_bairro*`, `natureza_categoria` | Segurança e índice de risco | |
 | `cnae`, `natureza_juridica`, `porte`, `situacao_cadastral`, `zona_regra` | Tabelas de apoio | |
 | `execucao` | Cada carga e cada etapa: `run_id`, `tipo`, `status`, `duracao_s`, `erro`, origem, arquivo, sha256, linhas | `id` |
 
@@ -482,13 +515,15 @@ pineal-curitiba/
 │   ├── 20_territorio.sql      chave territorial com desempate
 │   ├── 30_enriquecimento.sql  perfil do ponto, domiciliação, rede, ponto comercial, zoneamento
 │   ├── 40_m2.sql              saturação, sobrevivência, densidade, movimentos, raio_x
-│   └── 50_alvaras.sql         cruzamento alvará x CNPJ e sinais
+│   ├── 50_alvaras.sql         cruzamento alvará x CNPJ e sinais
+│   └── 60_seguranca.sql       agregados de segurança e índice de risco por bairro
 ├── etl/
 │   ├── config.py, db.py       .env, schema, run_id, conexão, registro de etapas e cargas
 │   ├── baixar.py, geo.py      download com cache; leitura de camadas vetoriais
 │   ├── fontes/                ibge_setores, ibge_cnefe, ippuc, cnpj_recorte, portal_inventario,
 │   │                          apoio, mindata_cruzamentos, overture_edificacoes, pmc_alvaras,
-│   │                          pmc_licitacoes, pmc_zeladoria, pmc_unidades, urbs_gtfs
+│   │                          pmc_licitacoes, pmc_zeladoria, pmc_unidades, urbs_gtfs,
+│   │                          pmc_sigesguarda
 │   ├── geocodificar.py, avaliar_geocodificacao.py, territorio.py
 │   ├── enriquecer.py, indicadores.py, exportar.py
 │   ├── portal.py, leitura.py  cliente do portal da prefeitura; leitura de CSV grande

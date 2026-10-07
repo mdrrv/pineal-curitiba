@@ -157,3 +157,49 @@ CREATE TABLE IF NOT EXISTS onibus_h3 (
     linhas      INT,
     partidas    INT
 );
+
+-- Ocorrências de segurança e defesa civil. Sem dado de pessoa (vítima, autor, solicitante): só o fato,
+-- quando e onde. A coluna fonte deixa somar CAPE, Bombeiros e Defesa Civil quando chegarem (LAI).
+CREATE TABLE IF NOT EXISTS seguranca_ocorrencia (
+    fonte           TEXT NOT NULL,
+    codigo          TEXT NOT NULL,
+    data            DATE,
+    hora            SMALLINT,
+    bairro          TEXT,
+    regional        TEXT,
+    logradouro      TEXT,
+    naturezas       TEXT[],
+    categorias      TEXT[],
+    defesa_civil    BOOLEAN,
+    equipamento_urbano TEXT,
+    flagrante       BOOLEAN,
+    geo_precisao    TEXT,
+    geom            geometry(Point, 4326),
+    h3_9            TEXT,
+    PRIMARY KEY (fonte, codigo)
+);
+CREATE INDEX IF NOT EXISTS seguranca_ocorrencia_data ON seguranca_ocorrencia (data);
+CREATE INDEX IF NOT EXISTS seguranca_ocorrencia_geom ON seguranca_ocorrencia USING gist (geom);
+
+-- natureza (texto livre do sistema de origem) -> categoria do índice. Primeiro padrão que casar, por ordem.
+-- Editável: linhas novas ou alteradas aqui não são sobrescritas.
+CREATE TABLE IF NOT EXISTS natureza_categoria (
+    padrao      TEXT PRIMARY KEY,   -- regex sobre norm_txt(natureza)
+    categoria   TEXT NOT NULL,      -- patrimonial | violento | fisico | ordem_publica | transito | outros
+    ordem       INT NOT NULL
+);
+INSERT INTO natureza_categoria (padrao, categoria, ordem) VALUES
+    ('\m(ROUBO|ASSALTO|LATROCINIO)\M', 'violento', 10),
+    ('\m(HOMICIDIO|LESAO CORPORAL|AGRESSAO|VIAS DE FATO|ESTUPRO|SEQUESTRO|AMEACA|VIOLENCIA|DISPARO|ARMAS?|BRIGA|RIXA)\M', 'violento', 20),
+    ('\m(FURTO|ARROMBAMENTO|DANO|DEPREDACAO|VANDALISMO|PICHACAO|INVASAO|RECEPTACAO|ESTELIONATO)\M', 'patrimonial', 30),
+    ('\m(ALAGAMENTO|INUNDACAO|ENXURRADA|DESTELHAMENTO|VENDAVAL|GRANIZO|ARVORES?|DESLIZAMENTO|DESABAMENTO|INCENDIO|FOGO|RISCO ESTRUTURAL|DEFESA CIVIL)\M', 'fisico', 40),
+    ('\m(ACIDENTE|TRANSITO|ATROPELAMENTO|COLISAO|EMBRIAGUEZ AO VOLANTE)\M', 'transito', 50),
+    ('\m(PERTURBACAO|SOSSEGO|SOM|EMBRIAGUEZ|ENTORPECENTE|DROGAS?|TRAFICO|AMBULANTE|COMERCIO IRREGULAR|ATO OBSCENO|DESORDEM|MORADOR DE RUA|SITUACAO DE RUA)\M', 'ordem_publica', 60)
+ON CONFLICT (padrao) DO NOTHING;
+
+CREATE OR REPLACE FUNCTION categoria_natureza(n TEXT) RETURNS TEXT
+LANGUAGE sql STABLE PARALLEL SAFE SET search_path FROM CURRENT AS $$
+    SELECT coalesce(
+        (SELECT categoria FROM natureza_categoria WHERE norm_txt(n) ~ padrao ORDER BY ordem LIMIT 1),
+        CASE WHEN nullif(btrim(n), '') IS NOT NULL THEN 'outros' END)
+$$;
