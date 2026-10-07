@@ -319,6 +319,17 @@ fontes:
     chaves: [cnpj, end]
     obs: fora do portal de dados abertos; localizar endpoint do painel
 
+  - id: osm_vias
+    nome: Vias do OpenStreetMap (rede de caminhada)
+    dono: OpenStreetMap
+    fase: M2
+    status: a_conferir
+    chaves: [geo]
+    formato: osm.pbf (recorte Sul do Geofabrik) ou linhas dos eixos do IPPUC
+    url: https://download.geofabrik.de/south-america/brazil/sul-latest.osm.pbf
+    script: etl/fontes/osm_vias.py
+    obs: "licença ODbL (citar © colaboradores do OpenStreetMap). Base das isócronas (etl/isocronas.py)"
+
   - id: urbs_gtfs
     nome: Transporte coletivo em GTFS (pontos, linhas, horários)
     dono: URBS

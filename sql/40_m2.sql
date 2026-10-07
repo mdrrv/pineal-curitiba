@@ -146,3 +146,42 @@ LANGUAGE sql STABLE SET search_path FROM CURRENT AS $$
     FROM raio r JOIN cidade c USING (divisao) CROSS JOIN area_cidade a CROSS JOIN mor m
     ORDER BY r.n DESC, r.divisao
 $$;
+
+-- raio_x numa área qualquer (isócrona, polígono desenhado): mesmas colunas, densidade pela área do polígono.
+--   SELECT * FROM raio_x_area((SELECT geom FROM isocrona WHERE id = 1));
+DROP FUNCTION IF EXISTS raio_x_area(geometry);
+CREATE FUNCTION raio_x_area(area geometry)
+RETURNS TABLE (divisao TEXT, divisao_descricao TEXT, ativos_area BIGINT, por_km2_area NUMERIC,
+               por_km2_cidade NUMERIC, indice NUMERIC, moradores_area NUMERIC, por_mil_moradores_area NUMERIC,
+               por_mil_moradores_cidade NUMERIC, indice_moradores NUMERIC)
+LANGUAGE sql STABLE SET search_path FROM CURRENT AS $$
+    WITH km2 AS (
+        SELECT ST_Area(area::geography) / 1e6 AS area,
+               coalesce((SELECT ST_Area(ST_Union(geom)::geography) FROM bairro),
+                        (SELECT ST_Area(ST_Union(geom)::geography) FROM setor)) / 1e6 AS cidade
+    ), precisa AS (
+        SELECT left(e.cnae_fiscal_principal, 2) AS divisao, g.geom
+        FROM empresa e JOIN empresa_geo g USING (cnpj) LEFT JOIN empresa_perfil p USING (cnpj)
+        WHERE e.situacao_cadastral = '02' AND NOT coalesce(p.domiciliacao, false)
+          AND g.geo_precisao IN ('estabelecimento', 'endereco', 'endereco_sem_cep', 'numero_proximo')
+    ), dentro AS (
+        SELECT divisao, count(*) AS n FROM precisa WHERE ST_Intersects(geom, area) GROUP BY 1
+    ), cidade AS (
+        SELECT divisao, count(*) AS n FROM precisa GROUP BY 1
+    ), mor AS (
+        SELECT NULLIF((SELECT moradores FROM moradores_area(area)), 0) AS area,
+               NULLIF((SELECT sum(pessoas) FROM setor_demografia), 0) AS cidade
+    )
+    SELECT d.divisao,
+           (SELECT max(c2.divisao_descricao) FROM cnae c2 WHERE c2.divisao = d.divisao),
+           d.n,
+           round((d.n / NULLIF(k.area, 0))::NUMERIC, 1),
+           round((c.n / NULLIF(k.cidade, 0))::NUMERIC, 1),
+           round((100 * (d.n / NULLIF(k.area, 0)) / NULLIF(c.n / NULLIF(k.cidade, 0), 0))::NUMERIC, 0),
+           m.area,
+           round(1000 * d.n / m.area, 2),
+           round(1000 * c.n / m.cidade, 2),
+           round(100 * (d.n / m.area) / (c.n / m.cidade), 0)
+    FROM dentro d JOIN cidade c USING (divisao) CROSS JOIN km2 k CROSS JOIN mor m
+    ORDER BY d.n DESC, d.divisao
+$$;

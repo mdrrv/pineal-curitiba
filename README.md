@@ -50,7 +50,7 @@ Funil de inteligência territorial B2B para Curitiba. Cruza a base de empresas d
 | Fase | Conteúdo | Situação |
 |---|---|---|
 | **M0** Fundação territorial | Setores IBGE, camadas IPPUC, CNEFE, recorte de CNPJs, geocodificação em 10 níveis com erro medido em metros, chave territorial | **Pronto e testado com dados sintéticos.** Falta a primeira rodada com dados reais |
-| **M2** Enriquecimento e indicadores | Perfil do ponto, domiciliação, histórico do ponto, redes, uso x zoneamento, saturação (QL), sobrevivência por coorte, densidade H3, movimentos mensais, raio-x, cruzamentos PNCP/TCE-PR/PGFN/sanções, edificações do Overture, exportação GeoParquet, demanda do Censo 2022 por setor (moradores por hexágono e no raio, espaço livre por bairro) | **Pronto e testado com dados sintéticos.** Códigos das variáveis do Censo a conferir com o dicionário do IBGE |
+| **M2** Enriquecimento e indicadores | Perfil do ponto, domiciliação, histórico do ponto, redes, uso x zoneamento, saturação (QL), sobrevivência por coorte, densidade H3, movimentos mensais, raio-x, cruzamentos PNCP/TCE-PR/PGFN/sanções, edificações do Overture, exportação GeoParquet, demanda do Censo 2022 por setor (moradores por hexágono e no raio, espaço livre por bairro), isócronas a pé e de ônibus com raio-x da área | **Pronto e testado com dados sintéticos.** Códigos das variáveis do Censo a conferir com o dicionário do IBGE |
 | **M1** Prefeitura e IPPUC | Alvarás (cruzamento CNPJ × alvará), licitações, 156, SIGMU, unidades de atendimento, transporte (GTFS) | **Pronto e testado com arquivos sintéticos no layout real.** Painel de Obras e autuações da Setran sem fonte em arquivo (#22) |
 | M1-seg Segurança | SiGesGuarda (Guarda Municipal) e índice de risco por bairro; CAPE/SESP-PR, Bombeiros e Defesa Civil | **SiGesGuarda e índice prontos e testados.** CAPE, Bombeiros e Defesa Civil dependem da LAI (#14) e entram na mesma tabela |
 | M1b Listas com CNPJ | MDIC, BNDES, IBAMA, IAT, CADASTUR, ANATEL, MAPA, e-MEC, CNES, ANP | **Leitor pronto e testado com arquivos sintéticos.** Layout de cada órgão a conferir na primeira carga real (arquivos baixados à mão em `dados/bruto/<lista>/`) |
@@ -412,6 +412,34 @@ SELECT * FROM moradores_raio(-25.4284, -49.2733, 500);
 SELECT bairro, ativos, esperado, lacuna FROM m2_espaco_livre WHERE classe = '47717' ORDER BY lacuna DESC LIMIT 10;
 ```
 
+### Área de influência: isócronas a pé e de ônibus
+
+Sem serviço pago nem servidor de rotas: a rede de caminhada fica no próprio banco e o cálculo é em Python.
+
+```bash
+# 1. rede (uma vez): recorte Sul do OSM, do Geofabrik (~350 MB), ou --arquivo com os eixos do IPPUC
+python -m etl.fontes.osm_vias
+# 2. isócronas a pé de 5, 10 e 15 min
+python -m etl.isocronas --lat -25.4284 --lon -49.2733
+# 3. de ônibus + caminhada, saindo numa quinta às 8h (GTFS em dados/bruto/urbs_gtfs/)
+python -m etl.isocronas --lat -25.4284 --lon -49.2733 --modo onibus --minutos 15 30 --saida "2026-10-08 08:00"
+```
+
+| Peça | Como funciona |
+|---|---|
+| Rede (`via_no`, `via_aresta`) | Do `.osm.pbf`, só a camada `lines` no retângulo da cidade, sem autoestrada, canaleta exclusiva, obra ou `foot=no`. As linhas são nodadas no PostGIS; o maior componente conexo é marcado (`principal`) e só ele serve de partida |
+| A pé | Dijkstra a 4,8 km/h (80 m por minuto) a partir do nó mais perto do ponto |
+| Ônibus | Caminha até os pontos, embarca nas viagens do dia (calendário do GTFS) que partem na janela, com transferência a pé entre pontos a até 300 m (Connection Scan), e caminha de cada ponto alcançado com o tempo que sobra |
+| Área | União das ruas alcançadas com 40 m de cada lado, gravada em `isocrona` (modo, minutos, ponto, saída) |
+| Raio-x | `raio_x_area(geom)` tem as colunas de `raio_x` para qualquer polígono; `moradores_area(geom)` dá moradores, domicílios e renda |
+
+```sql
+SELECT * FROM raio_x_area((SELECT geom FROM isocrona WHERE id = 1));
+SELECT * FROM moradores_area((SELECT geom FROM isocrona WHERE id = 1));
+```
+
+Limites: viaduto vira cruzamento na nodagem (para caminhada é aceitável); o tempo de ônibus é o da tabela do GTFS, sem trânsito real nem espera além do horário.
+
 `m2_movimento` só tem eventos a partir da segunda foto mensal. Rode `python -m etl.fontes.cnpj_recorte` a cada atualização da base da Receita (ou `python -m etl.m0 --so cnpj`) para acumular competências.
 
 ---
@@ -435,6 +463,7 @@ No schema do Pineal (`cwb` por padrão):
 | `seguranca_*`, `risco_bairro*`, `natureza_categoria` | Segurança e índice de risco | |
 | `lista_registro`, `empresa_lista` | Listas com CNPJ (M1b) | |
 | `censo_*`, `setor_demografia`, `setor_h3_domicilio`, `demanda_h3` | Censo 2022 por setor e demanda | |
+| `via_no`, `via_aresta`, `isocrona` | Rede de caminhada e isócronas | |
 | `cnae`, `natureza_juridica`, `porte`, `situacao_cadastral`, `zona_regra` | Tabelas de apoio | |
 | `execucao` | Cada carga e cada etapa: `run_id`, `tipo`, `status`, `duracao_s`, `erro`, origem, arquivo, sha256, linhas | `id` |
 
@@ -564,6 +593,7 @@ pineal-curitiba/
 │   ├── 10_geocodificar.sql    núcleo da geocodificação em níveis
 │   ├── 05_m1_schema.sql       tabelas e funções do M1 (datas, CNAE e valores do portal)
 │   ├── 06_censo_schema.sql    tabelas do Censo por setor e moradores_raio
+│   ├── 07_rede_schema.sql     rede de caminhada, isócronas e moradores_area
 │   ├── 20_territorio.sql      chave territorial com desempate
 │   ├── 30_enriquecimento.sql  perfil do ponto, domiciliação, rede, ponto comercial, zoneamento
 │   ├── 40_m2.sql              saturação, sobrevivência, densidade, movimentos, raio_x
@@ -576,9 +606,10 @@ pineal-curitiba/
 │   ├── fontes/                ibge_setores, ibge_cnefe, ippuc, cnpj_recorte, portal_inventario,
 │   │                          apoio, mindata_cruzamentos, overture_edificacoes, pmc_alvaras,
 │   │                          pmc_licitacoes, pmc_zeladoria, pmc_unidades, urbs_gtfs,
-│   │                          pmc_sigesguarda, listas_cnpj, ibge_censo_setor
+│   │                          pmc_sigesguarda, listas_cnpj, ibge_censo_setor, osm_vias
 │   ├── geocodificar.py, avaliar_geocodificacao.py, territorio.py
 │   ├── enriquecer.py, indicadores.py, exportar.py
+│   ├── isocronas.py           isócronas a pé e de ônibus
 │   ├── portal.py, leitura.py  cliente do portal da prefeitura; leitura de CSV grande
 │   └── m0.py, m1.py, m2.py    orquestradores
 ├── tests/
