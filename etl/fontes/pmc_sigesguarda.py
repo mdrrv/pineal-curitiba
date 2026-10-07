@@ -62,10 +62,10 @@ INSERIR = f"""
            coalesce((SELECT b.nome FROM bairro b WHERE norm_txt(b.nome) = norm_txt(f.bairro) LIMIT 1),
                     NULLIF(upper(btrim(f.bairro)), '')),
            NULLIF(upper(btrim(f.regional)), ''), NULLIF(btrim(f.logradouro), ''), n.naturezas,
-           ARRAY(SELECT DISTINCT c FROM (
+           NULLIF(ARRAY(SELECT DISTINCT c FROM (
                      SELECT categoria_natureza(u) AS c FROM unnest(n.naturezas) u
                      UNION ALL SELECT 'fisico' WHERE n.defesa_civil) t
-                 WHERE c IS NOT NULL ORDER BY c),
+                 WHERE c IS NOT NULL ORDER BY c), '{{}}'),
            coalesce(n.defesa_civil, false), NULLIF(btrim(f.equipamento), ''), {SIM.format(c="f.flagrante")}
     FROM fato f
     LEFT JOIN nat n USING (codigo)
@@ -117,6 +117,7 @@ def localizar(conn, fonte: str) -> None:
         cur.execute(LOCALIZAR, {"fonte": fonte})
         cur.execute("SELECT lc, bc, ST_Y(geom), ST_X(geom) FROM _par WHERE geom IS NOT NULL")
         h3s = [(h3.latlng_to_cell(lat, lon, 9), lc, bc) for lc, bc, lat, lon in cur.fetchall()]
+        cur.execute("CREATE INDEX ON _par (lc, bc)")
         cur.executemany("UPDATE _par SET h3_9 = %s WHERE lc = %s AND bc = %s", h3s)
         cur.execute(
             """

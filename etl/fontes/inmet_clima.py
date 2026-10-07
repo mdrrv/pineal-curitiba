@@ -54,7 +54,7 @@ def novo_dia() -> dict:
     return {"chuva": 0.0, "n_chuva": 0, "horas_chuva": 0, "temps": [], "max": None, "min": None}
 
 
-def ler_estacao(texto: io.TextIOBase, dias: dict) -> str:
+def ler_estacao(texto: io.TextIOBase, dias: dict, vistas: set | None = None) -> str:
     """Acumula em dias[(estação, dia local)] as horas de um CSV do INMET; devolve o código da estação."""
     estacao = None
     for linha in texto:
@@ -80,6 +80,10 @@ def ler_estacao(texto: io.TextIOBase, dias: dict) -> str:
         m = _momento(r[i_data], r[i_hora])
         if m is None:
             continue
+        if vistas is not None:  # a mesma hora em dois arquivos (zip anual e CSV solto) conta uma vez
+            if (estacao, m) in vistas:
+                continue
+            vistas.add((estacao, m))
         dia = (m - datetime.timedelta(hours=3)).date()
         a = dias[(estacao, dia)]
         chuva = _num(r[i_chuva]) if i_chuva is not None else None
@@ -128,10 +132,10 @@ def main(argv=None):
         arquivos = obter_arquivos(args.anos)
         if not arquivos:
             raise SystemExit(f"sem dados em {config.DADOS_BRUTO / FONTE}: use --anos ou coloque os zips do INMET lá")
-        dias = defaultdict(novo_dia)
+        dias, vistas = defaultdict(novo_dia), set()
         for a in arquivos:
             for nome, texto in textos(a):
-                log.info("%s: estação %s", nome, ler_estacao(texto, dias))
+                log.info("%s: estação %s", nome, ler_estacao(texto, dias, vistas))
         linhas = []
         for (estacao, dia), x in sorted(dias.items()):
             temps = x["temps"]

@@ -5,7 +5,8 @@ Uso:
 
 Lê os zips/XMLs da RPI de marcas (RM<numero>.zip, semanal) que estiverem em dados/bruto/inpi_marcas/ ou baixa
 os números pedidos (url_modelo do catálogo). A RPI não traz o CNPJ do titular: o casamento é pela razão social
-normalizada (norm_nome) com o titular de UF PR, e só vale quando o nome aponta para uma única raiz de CNPJ do
+normalizada (norm_nome) com o titular de UF PR (e cidade Curitiba, quando a RPI traz a cidade) que tenha forma
+de empresa no nome (LTDA, S/A, EIRELI, ME...), e só vale quando o nome aponta para uma única raiz de CNPJ do
 recorte (vai para a matriz em Curitiba, ou o menor CNPJ). Titular pessoa física e nome ambíguo não entram.
 
 Cada processo fica com o último despacho visto (maior número de revista). Grava inpi_marca e o resumo em
@@ -30,6 +31,7 @@ CAMPOS = [
     "deposito",
     "titular",
     "uf",
+    "cidade",
     "marca",
     "apresentacao",
     "natureza",
@@ -68,6 +70,7 @@ def processos(xml):
                 "deposito": el.get("data-deposito") or el.get("data_deposito"),
                 "titular": t.get("nome-razao-social") or t.get("nome"),
                 "uf": t.get("uf"),
+                "cidade": t.get("cidade") or t.get("municipio"),
                 "marca": nome_marca,
                 "apresentacao": marca.get("apresentacao") if marca is not None else None,
                 "natureza": marca.get("natureza") if marca is not None else None,
@@ -122,9 +125,13 @@ GRAVAR = """
     FROM marca_carga c
     JOIN _nome n ON n.nome = norm_nome(c.titular)
     WHERE upper(btrim(c.uf)) = 'PR' AND c.processo <> ''
+      -- titular com forma de empresa no nome (pessoa física "JOAO DA SILVA" não casa com "JOAO DA SILVA LTDA") e,
+      -- quando a RPI traz a cidade, só Curitiba (homônima de Londrina fica de fora)
+      AND norm_txt(c.titular) ~ '\\m(LTDA|S A|SA|EIRELI|EPP|ME|CIA|COMPANHIA|COOPERATIVA|ASSOCIACAO|INSTITUTO|FUNDACAO|SOCIEDADE|COMERCIO|INDUSTRIA|SERVICOS|DISTRIBUIDORA)\\M'
+      AND (coalesce(c.cidade, '') = '' OR norm_txt(c.cidade) = 'CURITIBA')
     ORDER BY c.processo, NULLIF(c.revista, '')::INT DESC NULLS LAST
     ON CONFLICT (processo) DO UPDATE SET
-        ultimo_despacho = EXCLUDED.ultimo_despacho, ultimo_despacho_nome = EXCLUDED.ultimo_despacho_nome,
+        cnpj = EXCLUDED.cnpj, ultimo_despacho = EXCLUDED.ultimo_despacho, ultimo_despacho_nome = EXCLUDED.ultimo_despacho_nome,
         revista = EXCLUDED.revista, classes_nice = coalesce(EXCLUDED.classes_nice, inpi_marca.classes_nice),
         marca = coalesce(EXCLUDED.marca, inpi_marca.marca),
         data_deposito = coalesce(EXCLUDED.data_deposito, inpi_marca.data_deposito)

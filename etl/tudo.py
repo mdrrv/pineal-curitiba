@@ -5,8 +5,8 @@ Uso:
     python -m etl.tudo --pular vias --pular edificacoes
     python -m etl.tudo --retomar <run_id>      # pula as etapas que já deram ok nessa rodada
 
-Ordem: fundação (M0) -> apoio, Censo, cruzamentos, edificações e enriquecimento (o perfil do ponto é usado
-pelos alvarás) -> bases da prefeitura e listas (M1) -> indicadores, score e exportação -> rede de caminhada
+Ordem: fundação (M0) -> apoio, cruzamentos, edificações, enriquecimento e Censo (o perfil do ponto é usado
+pelo espaço livre e pelos alvarás) -> bases da prefeitura e listas (M1) -> indicadores, score e exportação -> rede de caminhada
 -> publicação. Etapa essencial que falha para a rodada; etapa de fonte externa (OPCIONAIS) que falha, por
 host fora do ar ou arquivo ausente, fica registrada e a rodada segue sem ela.
 
@@ -54,10 +54,10 @@ ORDEM = [
     ("geocodificar", lambda: geocodificar.main([])),
     ("territorio", lambda: territorio.main([])),
     ("apoio", lambda: apoio.main([])),
-    ("censo", lambda: ibge_censo_setor.main([])),
     ("cruzamentos", lambda: mindata_cruzamentos.main([])),
     ("edificacoes", lambda: overture_edificacoes.main([])),
     ("enriquecer", lambda: enriquecer.main([])),
+    ("censo", lambda: ibge_censo_setor.main([])),  # o espaço livre usa a domiciliação do perfil
     ("alvaras", lambda: pmc_alvaras.main([])),
     ("licitacoes", lambda: pmc_licitacoes.main([])),
     ("zeladoria", lambda: pmc_zeladoria.main([])),

@@ -1,5 +1,6 @@
 """Leitura de CSV grande (solto ou dentro de zip) com detecção de codificação e separador."""
 
+import codecs
 import csv
 import io
 import re
@@ -27,8 +28,8 @@ def abrir_texto(caminho: Path, padrao_interno: str = ".csv"):
         abrir_bin = lambda: open(caminho, "rb")  # noqa: E731
     with abrir_bin() as b:
         amostra = b.read(1 << 20)
-    try:
-        amostra.decode("utf-8")
+    try:  # incremental: a amostra pode terminar no meio de um caractere de 2 ou 3 bytes
+        codecs.getincrementaldecoder("utf-8")().decode(amostra, final=False)
         enc = "utf-8-sig"
     except UnicodeDecodeError:
         enc = "cp1252"

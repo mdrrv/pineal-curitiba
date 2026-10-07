@@ -167,8 +167,9 @@ def risco_atual(conn, base: int) -> int:
                    round(m, 3) AS fator_bairro
             FROM ({PREVER.format(alvo="_ativa")}) p
         """)
+        n = cur.rowcount
         cur.execute("ALTER TABLE empresa_risco ADD PRIMARY KEY (cnpj)")
-        return cur.rowcount
+        return n
 
 
 def resumo(conn, validacao) -> str:

@@ -1,5 +1,5 @@
 -- Score de lead por CNPJ ativo. Quem chama (etl/score.py) já gravou empresa_risco.
--- Pontos por critério na tabela lead_peso (editável: a carga não sobrescreve pesos alterados). O score é a
+-- Pontos por critério na tabela lead_peso (editável: a carga só semeia a tabela vazia). O score é a
 -- soma dos pontos, limitada a 0..100. Tabelas de passos que não rodaram (empresa_perfil, empresa_sinais,
 -- empresa_alvara, empresa_contratos_pmc) viram tabelas temporárias vazias antes deste arquivo.
 -- Sem nome nem CPF: só CNPJ, critérios e pontos.
@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS lead_peso (
     pontos      INT NOT NULL,
     descricao   TEXT
 );
-INSERT INTO lead_peso (criterio, pontos, descricao) VALUES
+INSERT INTO lead_peso (criterio, pontos, descricao)
+SELECT * FROM (VALUES
     ('porte_epp', 10, 'Empresa de pequeno porte'),
     ('porte_demais', 15, 'Porte acima de EPP'),
     ('nao_mei', 5, 'Não é MEI'),
@@ -25,7 +26,7 @@ INSERT INTO lead_peso (criterio, pontos, descricao) VALUES
     ('risco_baixo', 10, 'Risco de fechamento abaixo da mediana da divisão'),
     ('divida_pgfn', -10, 'Inscrição em dívida ativa da União'),
     ('sancao', -30, 'Sanção federal ativa')
-ON CONFLICT (criterio) DO NOTHING;
+) v WHERE NOT EXISTS (SELECT 1 FROM lead_peso);
 
 CREATE TEMP TABLE _ref ON COMMIT DROP AS
 SELECT greatest(max(data_inicio_atividade), max(data_situacao_cadastral)) AS d FROM empresa;

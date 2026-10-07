@@ -33,7 +33,8 @@ log = logging.getLogger("listas_cnpj")
 
 CNPJ_PADRAO = ["CNPJ", "NU_CNPJ", "CO_CNPJ", "NR_CNPJ", "CNPJ_CPF", "CPF_CNPJ", "NUM_CNPJ", "CNPJ_EMPRESA"]
 
-# nivel: estabelecimento | empresa; agregar: soma | media (do valor)
+# nivel: estabelecimento | empresa
+# agregar (o valor de empresa_lista): soma | media | ultimo (soma só do período mais recente) | nenhum
 LISTAS = {
     "mdic_exportadoras": dict(
         nivel="empresa",
@@ -66,7 +67,7 @@ LISTAS = {
         nivel="empresa",
         cnpj=["CNPJ", "CNPJ_DA_PRESTADORA", "NUM_CNPJ"],
         valor=["ACESSOS", "QUANTIDADE_DE_ACESSOS", "QT_ACESSOS"],
-        agregar="soma",
+        agregar="ultimo",  # acessos são estoque mensal: somar meses multiplicaria a base
         data=["DATA", "ANO_MES", "ANO"],
         rotulo=["TECNOLOGIA", "MEIO_DE_ACESSO", "SERVICO"],
     ),
@@ -90,13 +91,17 @@ LISTAS = {
         nivel="estabelecimento",
         cnpj=["CNPJ_DA_REVENDA", "CNPJ"],
         valor=["VALOR_DE_VENDA", "PRECO_VENDA"],
-        agregar="media",
+        agregar="nenhum",  # média de gasolina com diesel não diz nada; o preço por produto fica em lista_registro
         data=["DATA_DA_COLETA", "DATA_COLETA"],
         rotulo=["PRODUTO", "BANDEIRA"],
     ),
 }
 
-PESSOAL = re.compile(r"CPF|E_?MAIL|TELEFONE|FONE|CELULAR|FAX|RESPONSAVEL|REPRESENTANTE|SOCIO|CONTATO|NOME_DO_CLIENTE")
+PESSOAL = re.compile(
+    r"CPF|E_?MAIL|TELEFONE|FONE|CELULAR|FAX|RESPONSAVEL|REPRESENTANTE|SOCIO|CONTATO|CLIENTE|NOME|TITULAR|"
+    r"REQUERENTE|INTERESSADO|EMPREENDEDOR|PROPRIETARIO|RAZAO"
+)
+CPF = re.compile(r"(?<![0-9])[0-9]{3}\.?[0-9]{3}\.?[0-9]{3}-?[0-9]{2}(?![0-9])")
 CAMPOS = ["lista", "arquivo", "cnpj", "cnpj_basico", "rotulo", "data", "valor", "atributos"]
 
 
@@ -133,14 +138,17 @@ def arquivos(lista: str) -> list[Path]:
     return sorted(x for x in p.glob("*") if x.suffix.lower() in (".csv", ".zip", ".txt")) if p.exists() else []
 
 
-def recorte(conn) -> tuple[set[str], set[str]]:
+def recorte(conn) -> tuple[set[str], set[str], set[str]]:
+    """CNPJs e raízes do recorte, e as raízes de pessoa física (MEI, empresário individual)."""
     with conn.cursor() as cur:
-        cur.execute("SELECT cnpj, cnpj_basico FROM empresa")
+        cur.execute("SELECT cnpj, coalesce(cnpj_basico, left(cnpj, 8)), pessoa_fisica FROM empresa")
         linhas = cur.fetchall()
-    return {c for c, _ in linhas}, {b or c[:8] for c, b in linhas}
+    return {c for c, _, _ in linhas}, {b for _, b, _ in linhas}, {b for _, b, pf in linhas if pf}
 
 
-def ler_arquivo(caminho: Path, lista: str, spec: dict, cnpjs: set[str], raizes: set[str], w) -> tuple[int, int]:
+def ler_arquivo(
+    caminho: Path, lista: str, spec: dict, cnpjs: set[str], raizes: set[str], pf: set[str], w
+) -> tuple[int, int]:
     lidas = casadas = 0
     with leitura.ler_csv(caminho) as leitor:
         cab = leitor.fieldnames
@@ -163,7 +171,10 @@ def ler_arquivo(caminho: Path, lista: str, spec: dict, cnpjs: set[str], raizes: 
             elif raiz not in raizes:
                 continue
             casadas += 1
-            atributos = {k: v.strip() for k in guardar if (v := r.get(k)) and v.strip()}
+            # pessoa física: nenhuma coluna extra (o nome dela pode estar em qualquer uma); nas demais, CPF some
+            atributos = (
+                {} if raiz in pf else {k: CPF.sub("***", v.strip()) for k in guardar if (v := r.get(k)) and v.strip()}
+            )
             w.writerow(
                 [
                     lista,
@@ -182,10 +193,9 @@ def ler_arquivo(caminho: Path, lista: str, spec: dict, cnpjs: set[str], raizes: 
 GRAVAR = """
     INSERT INTO lista_registro (lista, arquivo, cnpj, cnpj_basico, rotulo, data, valor, atributos)
     SELECT lista, arquivo, NULLIF(cnpj, ''), cnpj_basico, NULLIF(rotulo, ''),
-           CASE WHEN data ~ '^\\d{4}$' THEN make_date(data::INT, 1, 1)
-                WHEN data ~ '^\\d{6}$' THEN make_date(left(data, 4)::INT, right(data, 2)::INT, 1)
-                WHEN data ~ '^\\d{4}-\\d{2}$' THEN make_date(left(data, 4)::INT, right(data, 2)::INT, 1)
-                ELSE data_br(data) END,
+           CASE WHEN data ~ '^(19|20)\\d{2}$' THEN make_date(data::INT, 1, 1)
+                WHEN data ~ '^(19|20)\\d{2}-?(0[1-9]|1[0-2])$' THEN make_date(left(data, 4)::INT, right(data, 2)::INT, 1)
+                ELSE data_br(data) END,  -- ano ou ano-mês fora do intervalo vira NULL em vez de abortar a lista
            valor_br(valor), atributos::JSONB
     FROM lista_carga
 """
@@ -193,32 +203,41 @@ GRAVAR = """
 RESUMIR = """
     DELETE FROM empresa_lista WHERE lista = ANY(%(listas)s);
     INSERT INTO empresa_lista (cnpj, lista, via, registros, valor, data_min, data_max, rotulos)
-    SELECT e.cnpj, r.lista,
-           CASE WHEN bool_or(r.cnpj = e.cnpj) THEN 'cnpj' ELSE 'raiz' END,
+    WITH r AS (
+        SELECT l.*, a.agregar, a.nivel FROM lista_registro l JOIN lista_spec a USING (lista)
+        WHERE l.lista = ANY(%(listas)s)
+    ), par AS (  -- um join por nível: com OR no ON o planejador não usa índice nem hash
+        SELECT e.cnpj AS alvo, r.* FROM r JOIN empresa e ON e.cnpj = r.cnpj WHERE r.nivel = 'estabelecimento'
+        UNION ALL
+        SELECT e.cnpj, r.* FROM r JOIN empresa e ON e.cnpj_basico = r.cnpj_basico WHERE r.nivel = 'empresa'
+    ), p AS (
+        SELECT par.*, max(data) OVER (PARTITION BY alvo, lista) AS ultima FROM par
+    )
+    SELECT alvo, lista,
+           CASE WHEN bool_or(cnpj = alvo) THEN 'cnpj' ELSE 'raiz' END,
            count(*),
-           CASE WHEN min(r.agregar) = 'media' THEN round(avg(r.valor), 4) ELSE sum(r.valor) END,
-           min(r.data), max(r.data),
-           (array_agg(DISTINCT r.rotulo) FILTER (WHERE r.rotulo IS NOT NULL))[1:5]
-    FROM (SELECT l.*, a.agregar, a.nivel FROM lista_registro l JOIN lista_spec a USING (lista)
-          WHERE l.lista = ANY(%(listas)s)) r
-    JOIN empresa e ON (r.nivel = 'estabelecimento' AND e.cnpj = r.cnpj)
-                   OR (r.nivel = 'empresa' AND coalesce(e.cnpj_basico, left(e.cnpj, 8)) = r.cnpj_basico)
+           CASE min(agregar)
+               WHEN 'media' THEN round(avg(valor), 4)
+               WHEN 'ultimo' THEN sum(valor) FILTER (WHERE data = ultima)
+               WHEN 'soma' THEN sum(valor)
+           END,
+           min(data), max(data),
+           (array_agg(DISTINCT rotulo) FILTER (WHERE rotulo IS NOT NULL))[1:5]
+    FROM p
     GROUP BY 1, 2;
 """
 
 
-def carregar(conn, lista: str, cnpjs: set[str], raizes: set[str]) -> tuple[int, int, list[str]] | None:
+def carregar(conn, lista: str, cnpjs: set[str], raizes: set[str], pf: set[str]) -> tuple[int, int, list[str]] | None:
     fontes = arquivos(lista)
     if not fontes:
         return None
     spec = LISTAS[lista]
-    lidas = casadas = 0
+    por_arquivo = {}
     with tempfile.TemporaryFile("w+", encoding="utf-8", newline="") as tmp:
         w = csv.writer(tmp)
         for f in fontes:
-            li, ca = ler_arquivo(f, lista, spec, cnpjs, raizes, w)
-            lidas += li
-            casadas += ca
+            por_arquivo[f] = ler_arquivo(f, lista, spec, cnpjs, raizes, pf, w)
         tmp.seek(0)
         with conn.cursor() as cur:
             cur.execute(f"CREATE TEMP TABLE lista_carga ({', '.join(c + ' TEXT' for c in CAMPOS)}) ON COMMIT DROP")
@@ -226,9 +245,13 @@ def carregar(conn, lista: str, cnpjs: set[str], raizes: set[str]) -> tuple[int, 
             cur.execute("DELETE FROM lista_registro WHERE lista = %s", (lista,))
             cur.execute(GRAVAR)
             cur.execute("DROP TABLE lista_carga")
-    for f in fontes:
-        db.registrar(conn, lista, str(f), f.name, baixar.sha256(f), lidas, casadas=casadas)
-    return lidas, casadas, [f.name for f in fontes]
+    for f, (li, ca) in por_arquivo.items():
+        db.registrar(conn, lista, str(f), f.name, baixar.sha256(f), li, casadas=ca)
+    return (
+        sum(li for li, _ in por_arquivo.values()),
+        sum(ca for _, ca in por_arquivo.values()),
+        [f.name for f in fontes],
+    )
 
 
 def main(argv=None):
@@ -245,10 +268,10 @@ def main(argv=None):
                 "INSERT INTO lista_spec (lista, nivel, agregar) VALUES (%s, %s, %s)",
                 [(k, v["nivel"], v.get("agregar", "soma")) for k, v in LISTAS.items()],
             )
-        cnpjs, raizes = recorte(conn)
+        cnpjs, raizes, pf = recorte(conn)
         carregadas = {}
         for lista in escolhidas:
-            r = carregar(conn, lista, cnpjs, raizes)
+            r = carregar(conn, lista, cnpjs, raizes, pf)
             if r is None:
                 url = config.fonte(lista).get("url", "")
                 log.warning("%s: sem arquivo em dados/bruto/%s/ (%s)", lista, lista, url)

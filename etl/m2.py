@@ -5,7 +5,7 @@ Uso:
     python -m etl.m2 --so indicadores      # uma etapa (repetível)
     python -m etl.m2 --pular edificacoes   # todas menos essa (repetível)
 
-Etapas: apoio, censo, cruzamentos, edificacoes, enriquecer, indicadores, score, exportar
+Etapas: apoio, cruzamentos, edificacoes, enriquecer, censo, indicadores, score, exportar
 """
 
 import argparse
@@ -18,10 +18,10 @@ log = logging.getLogger("m2")
 
 ETAPAS = {
     "apoio": lambda: apoio.main([]),
-    "censo": lambda: ibge_censo_setor.main([]),
     "cruzamentos": lambda: mindata_cruzamentos.main([]),
     "edificacoes": lambda: overture_edificacoes.main([]),
     "enriquecer": lambda: enriquecer.main([]),
+    "censo": lambda: ibge_censo_setor.main([]),
     "indicadores": lambda: indicadores.main([]),
     "score": lambda: score.main([]),
     "exportar": lambda: exportar.main([]),

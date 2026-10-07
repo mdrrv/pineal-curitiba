@@ -681,5 +681,5 @@ def test_seguranca(conn, ambiente):
             (datetime.date(2026, 9, 1), "violento", 1),
         ]
         cur.execute("SELECT sum(ocorrencias_12m) FROM seguranca_h3")
-        assert cur.fetchone()[0] == 3
+        assert cur.fetchone()[0] == 2  # a do Batel caiu no ponto do bairro: conta no bairro, não no hexágono
     assert (ambiente / "relatorios" / "seguranca.md").exists()

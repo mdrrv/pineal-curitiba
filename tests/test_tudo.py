@@ -29,7 +29,7 @@ def etapa(nome, chamadas, falha=None):
 def test_ordem_das_dependencias():
     nomes = [n for n, _ in tudo.ORDEM]
     antes = lambda a, b: nomes.index(a) < nomes.index(b)  # noqa: E731
-    assert antes("territorio", "enriquecer") and antes("enriquecer", "alvaras")
+    assert antes("territorio", "enriquecer") and antes("enriquecer", "alvaras") and antes("enriquecer", "censo")
     assert antes("alvaras", "score") and antes("listas", "score") and antes("score", "publicar")
     assert set(tudo.OPCIONAIS) <= set(nomes)
 

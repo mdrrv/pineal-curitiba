@@ -68,6 +68,14 @@ def zonas_da_camada(conn) -> set[str]:
 def carregar(conn, caminho: Path) -> int:
     regras = ler_regras(caminho, zonas_da_camada(conn))
     with conn.cursor() as cur:
+        cur.execute("SELECT DISTINCT subclasse FROM cnae")
+        subclasses = [s for (s,) in cur.fetchall()]
+        if subclasses:  # planilha que perdeu o zero à esquerda ("111301") passa na validação mas não casa com nada
+            for zona, prefixo, _, _ in regras:
+                if not any(s.startswith(prefixo) for s in subclasses):
+                    log.warning(
+                        "prefixo %s (zona %s) não é começo de nenhum CNAE: zero à esquerda perdido?", prefixo, zona
+                    )
         cur.execute("TRUNCATE zona_regra")
         cur.executemany("INSERT INTO zona_regra (zona, cnae_prefixo, permitido, fonte) VALUES (%s, %s, %s, %s)", regras)
     return len(regras)

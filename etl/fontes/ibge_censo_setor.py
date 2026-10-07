@@ -179,6 +179,12 @@ def main(argv=None):
                 db.registrar(conn, FONTE, str(a), a.name, baixar.sha256(a), n, tema=tema)
             n = domicilios_h3(conn)
             log.info("%d endereços de domicílio do CNEFE distribuídos", n)
+            with conn.cursor() as cur:  # rodado antes do enriquecimento: espaço livre sem filtro de domiciliação
+                cur.execute("SELECT to_regclass('empresa_perfil')")
+                if cur.fetchone()[0] is None:
+                    cur.execute(
+                        "CREATE TEMP TABLE empresa_perfil (cnpj VARCHAR(14), domiciliacao BOOLEAN) ON COMMIT DROP"
+                    )
             db.executar_sql(conn, "70_demanda.sql")
             md = resumo(conn, temas)
     config.RELATORIOS.mkdir(exist_ok=True)

@@ -26,6 +26,7 @@ def ambiente(conn, monkeypatch, tmp_path):
             ("22222222000191", False, "S", "endereco"),  # MEI: só no agregado
             ("33333333000191", True, "N", "endereco"),  # pessoa física: só no agregado
             ("44444444000191", False, "N", "bairro"),  # sem localização de quadra
+            ("55555555000191", False, "N", "endereco"),  # endereço só residencial
         ]:
             cur.execute(
                 """INSERT INTO empresa (cnpj, razao_social, pessoa_fisica, opcao_mei, situacao_cadastral,
@@ -38,6 +39,11 @@ def ambiente(conn, monkeypatch, tmp_path):
                    VALUES (%s, %s, 'Centro', '89a8100c00fffff', ST_SetSRID(ST_MakePoint(%s, %s), 4326))""",
                 (cnpj, precisao, LON0, LAT0),
             )
+        cur.execute("CREATE TABLE empresa_perfil (cnpj VARCHAR(14), tipo_ponto TEXT)")
+        cur.execute(
+            "INSERT INTO empresa_perfil VALUES ('11111111000191', 'comercial'), ('22222222000191', 'comercial'), "
+            "('33333333000191', 'misto'), ('44444444000191', 'comercial'), ('55555555000191', 'residencial')"
+        )
         cur.execute("CREATE TABLE m2_densidade_h3 (h3_9 TEXT, divisao TEXT, ativos BIGINT)")
         cur.execute("INSERT INTO m2_densidade_h3 VALUES ('89a8100c00fffff', NULL, 4), ('89a8100c00fffff', '47', 4)")
     conn.commit()
@@ -46,7 +52,10 @@ def ambiente(conn, monkeypatch, tmp_path):
 
 def test_pacote(conn, ambiente):
     pasta = ambiente / "pub"
+    pasta.mkdir()
+    (pasta / "seguranca_h3.fgb").write_bytes(b"velho")  # de uma rodada anterior: tem de sumir
     m = publicar.main(["--pasta", str(pasta)])
+    assert not (pasta / "seguranca_h3.fgb").exists()
     assert set(m["camadas"]) == {"empresas", "densidade_h3", "bairros"}
     assert m["fora"]["demanda_h3"] == "tabelas ausentes: demanda_h3"
     emp = gpd.read_file(pasta / "empresas.fgb")
@@ -55,7 +64,7 @@ def test_pacote(conn, ambiente):
     dens = gpd.read_file(pasta / "densidade_h3.fgb")
     assert dens["ativos"].tolist() == [4] and json.loads(dens["por_divisao"][0]) == {"47": 4}
     bairros = gpd.read_file(pasta / "bairros.fgb")
-    assert bairros["ativos"].tolist() == [4]
+    assert bairros["ativos"].tolist() == [5]
     manifesto = json.loads((pasta / "manifesto.json").read_text(encoding="utf-8"))
     assert manifesto["camadas"]["empresas"]["sha256"] == publicar.sha256(pasta / "empresas.fgb")
 

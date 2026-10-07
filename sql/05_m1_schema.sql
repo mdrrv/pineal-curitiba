@@ -26,7 +26,7 @@ LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
     FROM (SELECT regexp_replace(coalesce(t, ''), '[^0-9]', '', 'g') AS d) x
 $$;
 
--- valor em reais no formato brasileiro ("1.234,56") ou com ponto decimal
+-- número no formato brasileiro ("1.234,56", "4,599", "1.234") ou com ponto decimal ("1234.5")
 CREATE OR REPLACE FUNCTION valor_br(t TEXT) RETURNS NUMERIC
 LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE AS $$
 DECLARE
@@ -35,8 +35,10 @@ BEGIN
     IF s = '' THEN
         RETURN NULL;
     END IF;
-    IF s ~ ',\d{1,2}$' THEN
+    IF s ~ ',\d+$' THEN                       -- vírgula decimal: pontos são milhar
         s := replace(replace(s, '.', ''), ',', '.');
+    ELSIF s ~ '^-?\d{1,3}(\.\d{3})+$' THEN   -- só pontos em grupos de 3: milhar ("1.234", "12.345.678")
+        s := replace(s, '.', '');
     END IF;
     RETURN s::NUMERIC;
 EXCEPTION WHEN others THEN
@@ -182,20 +184,22 @@ CREATE INDEX IF NOT EXISTS seguranca_ocorrencia_data ON seguranca_ocorrencia (da
 CREATE INDEX IF NOT EXISTS seguranca_ocorrencia_geom ON seguranca_ocorrencia USING gist (geom);
 
 -- natureza (texto livre do sistema de origem) -> categoria do índice. Primeiro padrão que casar, por ordem.
--- Editável: linhas novas ou alteradas aqui não são sobrescritas.
+-- Editável: a carga só semeia a tabela vazia; o que for alterado ou apagado fica como está.
 CREATE TABLE IF NOT EXISTS natureza_categoria (
     padrao      TEXT PRIMARY KEY,   -- regex sobre norm_txt(natureza)
     categoria   TEXT NOT NULL,      -- patrimonial | violento | fisico | ordem_publica | transito | outros
     ordem       INT NOT NULL
 );
-INSERT INTO natureza_categoria (padrao, categoria, ordem) VALUES
+INSERT INTO natureza_categoria (padrao, categoria, ordem)
+SELECT * FROM (VALUES
+    ('\mALARMES?\M', 'outros', 5),  -- "disparo de alarme" é frequente e não é violência
     ('\m(ROUBO|ASSALTO|LATROCINIO)\M', 'violento', 10),
-    ('\m(HOMICIDIO|LESAO CORPORAL|AGRESSAO|VIAS DE FATO|ESTUPRO|SEQUESTRO|AMEACA|VIOLENCIA|DISPARO|ARMAS?|BRIGA|RIXA)\M', 'violento', 20),
+    ('\m(HOMICIDIO|LESAO CORPORAL|AGRESSAO|VIAS DE FATO|ESTUPRO|SEQUESTRO|AMEACA|VIOLENCIA|DISPARO DE ARMA|ARMAS? DE FOGO|BRIGA|RIXA)\M', 'violento', 20),
     ('\m(FURTO|ARROMBAMENTO|DANO|DEPREDACAO|VANDALISMO|PICHACAO|INVASAO|RECEPTACAO|ESTELIONATO)\M', 'patrimonial', 30),
     ('\m(ALAGAMENTO|INUNDACAO|ENXURRADA|DESTELHAMENTO|VENDAVAL|GRANIZO|ARVORES?|DESLIZAMENTO|DESABAMENTO|INCENDIO|FOGO|RISCO ESTRUTURAL|DEFESA CIVIL)\M', 'fisico', 40),
     ('\m(ACIDENTE|TRANSITO|ATROPELAMENTO|COLISAO|EMBRIAGUEZ AO VOLANTE)\M', 'transito', 50),
     ('\m(PERTURBACAO|SOSSEGO|SOM|EMBRIAGUEZ|ENTORPECENTE|DROGAS?|TRAFICO|AMBULANTE|COMERCIO IRREGULAR|ATO OBSCENO|DESORDEM|MORADOR DE RUA|SITUACAO DE RUA)\M', 'ordem_publica', 60)
-ON CONFLICT (padrao) DO NOTHING;
+) v WHERE NOT EXISTS (SELECT 1 FROM natureza_categoria);
 
 CREATE OR REPLACE FUNCTION categoria_natureza(n TEXT) RETURNS TEXT
 LANGUAGE sql STABLE PARALLEL SAFE SET search_path FROM CURRENT AS $$

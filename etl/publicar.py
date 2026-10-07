@@ -8,9 +8,10 @@ e manifesto.json (camadas, linhas, colunas, sha256, data da base). Depois, para 
     scripts/pmtiles.sh dados/publicar/<AAAA-MM-DD>       # tippecanoe -> pineal.pmtiles (MapLibre)
 
 Recorte publicado (CAMADAS):
-    - empresas: ponto só de empresa ativa, pessoa jurídica, não MEI, com localização de quadra; colunas de
-      atividade, porte, território, score e risco. MEI e CNPJ de pessoa física só entram nos agregados (o ponto
-      pode ser a casa da pessoa).
+    - empresas: ponto só de empresa ativa, pessoa jurídica, não MEI, com localização de quadra e em endereço
+      comercial ou misto (perfil do ponto); colunas de atividade, porte, território, score e risco. MEI, CNPJ de
+      pessoa física e empresa em endereço só residencial ou desconhecido entram só nos agregados: o ponto pode
+      ser a casa de alguém (uma Ltda de um sócio só leva à pessoa pelo quadro societário).
     - hexágonos H3 r9 e bairros: contagens e índices.
 Nada de nome, razão social, CPF, contato ou endereço por extenso: a checagem final recusa o pacote se aparecer
 coluna proibida ou um CPF em qualquer valor de texto. Camada cujas tabelas não existem (passo não rodou) fica
@@ -41,7 +42,11 @@ PROIBIDAS = re.compile(
 )
 CPF = re.compile(r"(?<![0-9])[0-9]{3}\.?[0-9]{3}\.?[0-9]{3}-?[0-9]{2}(?![0-9])")
 PRECISA = "('estabelecimento', 'endereco', 'endereco_sem_cep', 'numero_proximo')"
-OPCIONAIS = {"empresa_lead": "cnpj VARCHAR(14), score INT", "empresa_risco": "cnpj VARCHAR(14), risco_12m NUMERIC"}
+OPCIONAIS = {
+    "empresa_lead": "cnpj VARCHAR(14), score INT",
+    "empresa_risco": "cnpj VARCHAR(14), risco_12m NUMERIC",
+    "empresa_perfil": "cnpj VARCHAR(14), tipo_ponto TEXT",
+}
 
 # nome: (tabelas exigidas, tipo de geometria, SQL). tipo: ponto/poligono (coluna geom em WKB), h3 (coluna h3_9),
 # tabela (sem geometria)
@@ -57,7 +62,9 @@ CAMADAS = {
         JOIN empresa_geo g USING (cnpj)
         LEFT JOIN empresa_lead l USING (cnpj)
         LEFT JOIN empresa_risco r USING (cnpj)
+        LEFT JOIN empresa_perfil p USING (cnpj)
         WHERE e.situacao_cadastral = '02' AND NOT e.pessoa_fisica AND coalesce(e.opcao_mei, 'N') <> 'S'
+          AND p.tipo_ponto IN ('comercial', 'misto')
           AND g.geo_precisao IN {PRECISA} AND g.geom IS NOT NULL
         """,
     ),
@@ -160,6 +167,8 @@ def sha256(caminho: Path) -> str:
 
 def publicar(conn, pasta: Path) -> dict:
     pasta.mkdir(parents=True, exist_ok=True)
+    for velho in [*pasta.glob("*.fgb"), *pasta.glob("*.parquet"), *pasta.glob("*.pmtiles")]:
+        velho.unlink()  # camada que agora ficou de fora não pode sobrar de uma rodada anterior
     with conn.cursor() as cur:
         for tabela, colunas in OPCIONAIS.items():
             if not existe(conn, tabela):

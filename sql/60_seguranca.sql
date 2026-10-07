@@ -4,6 +4,9 @@
 -- Janela: os 12 meses que terminam no último mês com dado (não a data de hoje), para o índice
 -- não cair só porque a base ainda não foi atualizada.
 --
+-- seguranca_h3 só conta ocorrência localizada na rua (logradouro_no_bairro): a que caiu no ponto do bairro
+-- empilharia o bairro inteiro num hexágono e pareceria um foco que não existe. Ela conta só no bairro.
+--
 -- risco_bairro: por bairro do IPPUC e categoria, ocorrências na janela, por km² e por mil empresas
 -- ativas do bairro, e o percentil entre os bairros (0 a 100) da taxa usada pela categoria:
 --   patrimonial  por mil empresas ativas (risco para o comércio estabelecido)
@@ -21,7 +24,8 @@ GROUP BY 1, 2, 3, 4;
 CREATE TEMP TABLE _janela ON COMMIT DROP AS
 SELECT (date_trunc('month', max(data)) + INTERVAL '1 month')::DATE AS fim,
        (date_trunc('month', max(data)) - INTERVAL '11 months')::DATE AS inicio
-FROM seguranca_ocorrencia;
+FROM seguranca_ocorrencia
+WHERE data <= current_date;  -- data digitada no futuro não arrasta a janela
 
 DROP TABLE IF EXISTS seguranca_h3;
 CREATE TABLE seguranca_h3 AS
@@ -29,7 +33,7 @@ SELECT o.h3_9, c.categoria, count(*)::INT AS ocorrencias_12m
 FROM seguranca_ocorrencia o
 CROSS JOIN LATERAL unnest(coalesce(o.categorias, ARRAY['outros'])) AS c(categoria)
 CROSS JOIN _janela j
-WHERE o.h3_9 IS NOT NULL AND o.data >= j.inicio AND o.data < j.fim
+WHERE o.h3_9 IS NOT NULL AND o.geo_precisao = 'logradouro_no_bairro' AND o.data >= j.inicio AND o.data < j.fim
 GROUP BY 1, 2;
 ALTER TABLE seguranca_h3 ADD PRIMARY KEY (h3_9, categoria);
 

@@ -38,6 +38,8 @@ EXCLUIR = {
 }
 
 NODAR = """
+    CREATE INDEX ON _bruta USING gist (geom);
+    ANALYZE _bruta;
     CREATE TEMP TABLE _seg ON COMMIT DROP AS
     SELECT (ST_Dump(ST_Node(ST_Collect(geom)))).geom AS geom FROM _bruta;
     DELETE FROM _seg WHERE ST_Length(geom) = 0;

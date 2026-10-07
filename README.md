@@ -143,7 +143,7 @@ python -m etl.tudo --pular vias --pular edificacoes
 python -m etl.tudo --retomar <run_id>       # depois de uma falha: refaz só o que faltou
 ```
 
-Ordem: fundação (M0), depois apoio, Censo, cruzamentos, edificações e enriquecimento (os alvarás usam o perfil do ponto), depois as bases da prefeitura e as listas (M1), depois indicadores, score e exportação, a rede de caminhada e a publicação. Etapa de fonte externa que falha (host fora, arquivo ausente) fica registrada e a rodada segue sem ela; etapa essencial que falha interrompe. O resumo, com o `run_id` para retomar, vai para `relatorios/rodada.md`. As seções abaixo descrevem cada passo, para rodar ou refazer um de cada vez.
+Ordem: fundação (M0), depois apoio, cruzamentos, edificações, enriquecimento e Censo (o espaço livre e os alvarás usam o perfil do ponto), depois as bases da prefeitura e as listas (M1), depois indicadores, score e exportação, a rede de caminhada e a publicação. Etapa de fonte externa que falha (host fora, arquivo ausente) fica registrada e a rodada segue sem ela; etapa essencial que falha interrompe. O resumo, com o `run_id` para retomar, vai para `relatorios/rodada.md`. As seções abaixo descrevem cada passo, para rodar ou refazer um de cada vez.
 
 ### 0. Verificação (recomendado antes da primeira rodada)
 
@@ -311,7 +311,7 @@ Para refazer o cruzamento depois de atualizar o M0, rode `python -m etl.m1 --so 
 
 O SiGesGuarda traz o fato, sem pessoa: código, data, hora, bairro, regional, rua (sem número), até cinco naturezas, marca de defesa civil, equipamento urbano e flagrante. Linhas repetidas do mesmo código viram uma ocorrência com todas as naturezas.
 
-**Categorias.** Cada natureza vira uma categoria pela tabela `natureza_categoria` (regex sobre o texto normalizado, o primeiro padrão por `ordem` vence). Ocorrência com marca de defesa civil também conta como `fisico`. A tabela é editável e a carga não sobrescreve linhas alteradas; `relatorios/seguranca.md` lista as naturezas que caíram em `outros` para ajustar.
+**Categorias.** Cada natureza vira uma categoria pela tabela `natureza_categoria` (regex sobre o texto normalizado, o primeiro padrão por `ordem` vence). Ocorrência com marca de defesa civil também conta como `fisico`. A tabela é editável: a carga só a semeia quando está vazia, então o que você alterar ou apagar fica como está; `relatorios/seguranca.md` lista as naturezas que caíram em `outros` para ajustar.
 
 | Categoria | Exemplos |
 |---|---|
@@ -348,17 +348,17 @@ Listas federais e estaduais que dizem algo da empresa: exporta, tem crédito do 
 | `ibama_ctf` | empresa | início da atividade | | categoria |
 | `iat_licencas` | estabelecimento | validade | | tipo de licença (pedido 12 da LAI se não houver arquivo) |
 | `cadastur` | estabelecimento | validade do certificado | | atividade |
-| `anatel_scm` | empresa | mês | soma dos acessos | tecnologia |
+| `anatel_scm` | empresa | mês | acessos do mês mais recente | tecnologia |
 | `mapa_sif` | estabelecimento | | | classificação |
 | `emec` | empresa (mantenedora) | início do funcionamento | | organização acadêmica |
 | `cnes` | estabelecimento | atualização | | tipo de unidade |
-| `anp_revendas` | estabelecimento | coleta | preço médio | produto |
+| `anp_revendas` | estabelecimento | coleta | (preço por produto em `lista_registro`) | produto |
 
 **Leitura tolerante.** A coluna do CNPJ, da data, do valor e do rótulo é a primeira que existir numa lista de nomes possíveis (`LISTAS` em `etl/fontes/listas_cnpj.py`); cabeçalho normalizado, separador e codificação detectados. O log diz qual coluna foi usada em cada arquivo. Se um órgão mudar o nome da coluna, acrescente o nome novo na lista.
 
 **Casamento.** O CNPJ passa pelo dígito verificador (zeros à esquerda perdidos numa planilha são repostos quando a coluna é só de CNPJ). Lista de estabelecimento casa pelo CNPJ igual; lista de empresa casa pela raiz e vale para todas as unidades de Curitiba. Só entram linhas de empresas do recorte.
 
-**LGPD.** Linha com CPF não entra. Colunas de CPF, e-mail, telefone, responsável, representante, sócio e contato não vão para `atributos`.
+**LGPD.** Linha com CPF não entra. Colunas de CPF, nome, cliente, titular, requerente, interessado, empreendedor, proprietário, razão social, e-mail, telefone, responsável, representante, sócio e contato não vão para `atributos`; CPF no meio de outro valor vira `***`. Empresa de pessoa física (MEI, empresário individual) fica sem `atributos`: o nome dela pode estar em qualquer coluna.
 
 | Tabela | Conteúdo |
 |---|---|
@@ -477,7 +477,7 @@ A carga recusa o arquivo inteiro se houver erro, com a linha de cada um. A amost
 
 Limites: MEI é a opção atual (a Receita não dá o histórico); empresas reativadas contam como ativas o tempo todo.
 
-**Score (`empresa_lead.score`, 0 a 100).** Soma de pontos por critério, com os pesos em `lead_peso` (editável: a carga não sobrescreve um peso alterado). `criterios` lista o que somou, do maior peso para o menor.
+**Score (`empresa_lead.score`, 0 a 100).** Soma de pontos por critério, com os pesos em `lead_peso` (editável: a carga só semeia a tabela vazia). `criterios` lista o que somou, do maior peso para o menor.
 
 | Critério | Pontos | Fonte |
 |---|---:|---|
@@ -538,7 +538,7 @@ scripts/pmtiles.sh dados/publicar/<data>       # pineal.pmtiles para o MapLibre 
 
 | Camada | Arquivo | Conteúdo |
 |---|---|---|
-| `empresas` | `.fgb` | Ponto de empresa ativa, pessoa jurídica, não MEI, com localização de quadra: CNPJ, divisão, CNAE, porte, ano de abertura, precisão, bairro, H3, score e risco |
+| `empresas` | `.fgb` | Ponto de empresa ativa, pessoa jurídica, não MEI, com localização de quadra e endereço comercial ou misto: CNPJ, divisão, CNAE, porte, ano de abertura, precisão, bairro, H3, score e risco |
 | `densidade_h3` | `.fgb` | Hexágono r9: ativos e ativos por divisão (JSON) |
 | `demanda_h3` | `.fgb` | Hexágono r9: moradores, domicílios, crianças, idosos, renda |
 | `seguranca_h3` | `.fgb` | Hexágono r9: ocorrências em 12 meses e por categoria (JSON) |
@@ -546,7 +546,7 @@ scripts/pmtiles.sh dados/publicar/<data>       # pineal.pmtiles para o MapLibre 
 | `bairros` | `.fgb` | Bairro: ativos, moradores, índices de risco |
 | `saturacao_bairro`, `espaco_livre` | `.parquet` | Tabelas por bairro e atividade |
 
-Regras do recorte: MEI e CNPJ de pessoa física aparecem só nos agregados (o ponto pode ser a casa da pessoa). Nenhuma coluna de nome, razão social, CPF, contato ou endereço por extenso; `etl/publicar.py` recusa o pacote se encontrar coluna proibida ou um CPF em qualquer texto. Camada sem as tabelas de origem fica de fora, com o motivo em `manifesto.json` (que também traz linhas, colunas, sha256 e a data da base).
+Regras do recorte: MEI, CNPJ de pessoa física e empresa em endereço só residencial ou desconhecido aparecem só nos agregados (o ponto pode ser a casa de alguém). O pacote é refeito do zero a cada rodada. Nenhuma coluna de nome, razão social, CPF, contato ou endereço por extenso; `etl/publicar.py` recusa o pacote se encontrar coluna proibida ou um CPF em qualquer texto. Camada sem as tabelas de origem fica de fora, com o motivo em `manifesto.json` (que também traz linhas, colunas, sha256 e a data da base).
 
 ## O que sai no banco
 

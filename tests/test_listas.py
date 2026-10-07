@@ -76,7 +76,7 @@ def test_listas(conn, ambiente):
                 "anp_revendas",
                 "cnpj",
                 2,
-                Decimal("4.8900"),
+                None,
                 datetime.date(2026, 9, 1),
                 datetime.date(2026, 9, 2),
                 ["ETANOL", "GASOLINA"],

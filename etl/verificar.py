@@ -75,49 +75,54 @@ def banco_rfb() -> list[tuple]:
         conn = psycopg2.connect(config.dsn_rfb(), connect_timeout=10)
     except psycopg2.Error as e:
         return [("banco MINDATA", "conexão", FALHA, str(e).strip().splitlines()[0])]
-    with conn, conn.cursor() as cur:
-        cur.execute("SET statement_timeout = '60s'")
-        cur.execute("SELECT to_regclass('dados_rfb.cnpj_consolidado')")
-        if cur.fetchone()[0] is None:
-            r.append(("banco MINDATA", "dados_rfb.cnpj_consolidado", FALHA, "tabela não existe (configure RFB_DSN)"))
-        else:
-            cur.execute(
-                """SELECT EXISTS (SELECT 1 FROM dados_rfb.cnpj_consolidado WHERE uf = %s AND municipio = %s),
-                          EXISTS (SELECT 1 FROM dados_rfb.cnpj_consolidado WHERE uf = %s AND upper(nome_municipio) = %s)""",
-                (config.UF, config.COD_RFB, config.UF, config.NOME_MUNICIPIO),
-            )
-            por_codigo, por_nome = cur.fetchone()
-            if por_codigo:
-                r.append(("banco MINDATA", "recorte do município", OK, f"município {config.COD_RFB} encontrado"))
-            elif por_nome:
+    try:  # consulta lenta (sem índice), coluna com outro nome: vira falha no relatório, não traceback
+        with conn, conn.cursor() as cur:
+            cur.execute("SET statement_timeout = '60s'")
+            cur.execute("SELECT to_regclass('dados_rfb.cnpj_consolidado')")
+            if cur.fetchone()[0] is None:
                 r.append(
-                    (
-                        "banco MINDATA",
-                        "recorte do município",
-                        AVISO,
-                        f"código {config.COD_RFB} não achado; o nome {config.NOME_MUNICIPIO} acha (confira PINEAL_COD_RFB)",
-                    )
+                    ("banco MINDATA", "dados_rfb.cnpj_consolidado", FALHA, "tabela não existe (configure RFB_DSN)")
                 )
             else:
+                cur.execute(
+                    """SELECT EXISTS (SELECT 1 FROM dados_rfb.cnpj_consolidado WHERE uf = %s AND municipio = %s),
+                              EXISTS (SELECT 1 FROM dados_rfb.cnpj_consolidado WHERE uf = %s AND upper(nome_municipio) = %s)""",
+                    (config.UF, config.COD_RFB, config.UF, config.NOME_MUNICIPIO),
+                )
+                por_codigo, por_nome = cur.fetchone()
+                if por_codigo:
+                    r.append(("banco MINDATA", "recorte do município", OK, f"município {config.COD_RFB} encontrado"))
+                elif por_nome:
+                    r.append(
+                        (
+                            "banco MINDATA",
+                            "recorte do município",
+                            AVISO,
+                            f"código {config.COD_RFB} não achado; o nome {config.NOME_MUNICIPIO} acha (confira PINEAL_COD_RFB)",
+                        )
+                    )
+                else:
+                    r.append(
+                        (
+                            "banco MINDATA",
+                            "recorte do município",
+                            FALHA,
+                            f"nem o código {config.COD_RFB} nem o nome {config.NOME_MUNICIPIO} em {config.UF}",
+                        )
+                    )
+            for nome, (tabela, _, _) in mindata_cruzamentos.FONTES.items():
+                cur.execute("SELECT to_regclass(%s)", (tabela,))
+                existe = cur.fetchone()[0] is not None
                 r.append(
                     (
                         "banco MINDATA",
-                        "recorte do município",
-                        FALHA,
-                        f"nem o código {config.COD_RFB} nem o nome {config.NOME_MUNICIPIO} em {config.UF}",
+                        f"cruzamento {nome}",
+                        OK if existe else AVISO,
+                        tabela if existe else f"{tabela} ausente: o cruzamento é pulado",
                     )
                 )
-        for nome, (tabela, _, _) in mindata_cruzamentos.FONTES.items():
-            cur.execute("SELECT to_regclass(%s)", (tabela,))
-            existe = cur.fetchone()[0] is not None
-            r.append(
-                (
-                    "banco MINDATA",
-                    f"cruzamento {nome}",
-                    OK if existe else AVISO,
-                    tabela if existe else f"{tabela} ausente: o cruzamento é pulado",
-                )
-            )
+    except psycopg2.Error as e:
+        r.append(("banco MINDATA", "consulta", FALHA, f"{type(e).__name__}: {str(e).strip().splitlines()[0]}"))
     conn.close()
     return r
 

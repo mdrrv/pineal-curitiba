@@ -153,7 +153,10 @@ def ler_conexoes(caminho: Path, dia: datetime.date, inicio: int, fim: int):
         }
     conexoes = []
     for trip, seq in paradas.items():
-        seq.sort()
+        # parada sem horário (permitido no GTFS para quem não é ponto de controle) fica de fora: o trecho liga a
+        # última parada com horário à próxima com horário
+        seq = sorted((o, chg if chg is not None else sai, sai if sai is not None else chg, s) for o, chg, sai, s in seq)
+        seq = [x for x in seq if x[1] is not None]
         for (_, _, dep, a), (_, arr, _, b) in zip(seq, seq[1:], strict=False):
             if dep is not None and arr is not None and inicio <= dep <= fim:
                 conexoes.append((dep, arr, a, b, trip))
@@ -169,12 +172,16 @@ def metros(a: tuple[float, float], b: tuple[float, float]) -> float:
 
 def transferencias(pontos: dict[str, tuple[float, float]]) -> dict[str, list[tuple[str, float]]]:
     grade = defaultdict(list)
+    if not pontos:
+        return {}
     passo = TRANSFERENCIA_M / 111_320
+    lat_media = sum(la for la, _ in pontos.values()) / len(pontos)
+    passo_lon = passo / math.cos(math.radians(lat_media))  # grau de longitude é mais curto fora do equador
     for s, (la, lo) in pontos.items():
-        grade[(int(la / passo), int(lo / passo))].append(s)
+        grade[(int(la / passo), int(lo / passo_lon))].append(s)
     viz = defaultdict(list)
     for s, p in pontos.items():
-        ci, cj = int(p[0] / passo), int(p[1] / passo)
+        ci, cj = int(p[0] / passo), int(p[1] / passo_lon)
         for di in (-1, 0, 1):
             for dj in (-1, 0, 1):
                 for t in grade[(ci + di, cj + dj)]:
@@ -227,6 +234,8 @@ def calcular(
         }
         chegada = connection_scan(conexoes, chegada, transferencias({s: pontos[s] for s in nos}))
         for s, t in chegada.items():
+            if s not in nos:  # parada sem coordenada em stops.txt
+                continue
             n, d = nos[s]
             custo = (t - t0) / 60 * VELOCIDADE + d
             if custo < origens.get(n, math.inf):

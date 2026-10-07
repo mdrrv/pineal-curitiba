@@ -9,8 +9,7 @@ CREATE TABLE IF NOT EXISTS censo_setor_var (
     PRIMARY KEY (cd_setor, tema, variavel)
 );
 
--- variável do IBGE -> indicador do Pineal. Conferir com o dicionário de cada tema; a carga não sobrescreve
--- linhas alteradas aqui.
+-- variável do IBGE -> indicador do Pineal. Conferir com o dicionário de cada tema; a carga só semeia a tabela vazia
 CREATE TABLE IF NOT EXISTS censo_variavel (
     tema        TEXT NOT NULL,
     variavel    TEXT NOT NULL,
@@ -18,7 +17,8 @@ CREATE TABLE IF NOT EXISTS censo_variavel (
     descricao   TEXT,
     PRIMARY KEY (tema, variavel)
 );
-INSERT INTO censo_variavel (tema, variavel, indicador, descricao) VALUES
+INSERT INTO censo_variavel (tema, variavel, indicador, descricao)
+SELECT * FROM (VALUES
     ('basico', 'V0001', 'pessoas', 'Total de pessoas'),
     ('basico', 'V0002', 'domicilios', 'Total de domicílios'),
     ('basico', 'V0007', 'domicilios_ocupados', 'Domicílios particulares ocupados'),
@@ -38,7 +38,7 @@ INSERT INTO censo_variavel (tema, variavel, indicador, descricao) VALUES
     ('demografia', 'V01040', 'idade_60_69', '60 a 69 anos'),
     ('demografia', 'V01041', 'idade_70_mais', '70 anos ou mais'),
     ('renda_responsavel', 'V06004', 'renda_media_responsavel', 'Rendimento nominal médio mensal dos responsáveis (R$)')
-ON CONFLICT (tema, variavel) DO NOTHING;
+) v WHERE NOT EXISTS (SELECT 1 FROM censo_variavel);
 
 CREATE TABLE IF NOT EXISTS setor_demografia (
     cd_setor                TEXT PRIMARY KEY,
