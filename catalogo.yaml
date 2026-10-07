@@ -113,12 +113,13 @@ fontes:
     nome: Base de Alvarás
     dono: SMF (Planejamento, Finanças e Orçamento)
     fase: M1
-    status: inventariado
+    status: ativo
     chaves: [end, nome, cnae]
     portal_chave: be211e1f-cff5-44cb-9aaa-1be6b9ec3811
     uso: cruzamento CNPJ x alvará (informalidade, ponto vago, atividade real, data de chegada ao endereço)
     frequencia: mensal
     obs: "sem CNPJ: cruzamento por CEP, endereço, nome empresarial/fantasia e CNAE. Colunas-chave: NOME_EMPRESARIAL, NOME_FANTASIA, INICIO_ATIVIDADE, NUMERO_DO_ALVARA, DATA_EMISSAO, DATA_EXPIRACAO, ENDERECO, NUMERO, BAIRRO, CEP, CNAE_ATIVIDADE_PRINCIPAL e 20 CNAE secundários. Arquivo mensal de ~540 MB"
+    script: etl/fontes/pmc_alvaras.py
 
   - id: pmc_licitacoes
     nome: Licitações e Contratações

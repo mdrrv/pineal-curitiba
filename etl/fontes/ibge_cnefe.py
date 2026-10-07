@@ -9,14 +9,12 @@ Aceita o arquivo do município ou o da UF inteira (filtra por COD_MUNICIPIO).
 
 import argparse
 import csv
-import io
 import logging
 import tempfile
-import zipfile
-from contextlib import contextmanager
 from pathlib import Path
 
 from etl import baixar, config, db
+from etl.leitura import abrir_texto  # noqa: F401 (reexportado para quem lê o CNEFE)
 
 log = logging.getLogger("ibge_cnefe")
 FONTE = "ibge_cnefe"
@@ -47,34 +45,6 @@ def obter_arquivo(arquivo: str | None) -> tuple[Path, str]:
     f = config.fonte(FONTE)
     url = baixar.resolver_no_diretorio(f["url_diretorio"], f["padrao_arquivo"])
     return baixar.baixar(url, FONTE), url
-
-
-@contextmanager
-def abrir_texto(caminho: Path):
-    """Abre o CSV (solto ou dentro do zip) como texto, detectando UTF-8 ou Latin-1."""
-    if caminho.suffix.lower() == ".zip":
-        z = zipfile.ZipFile(caminho)
-        nomes = [n for n in z.namelist() if n.lower().endswith(".csv")]
-        if not nomes:
-            raise ValueError(f"nenhum .csv dentro de {caminho.name}")
-        abrir_bin = lambda: z.open(nomes[0])  # noqa: E731
-    else:
-        z = None
-        abrir_bin = lambda: open(caminho, "rb")  # noqa: E731
-    with abrir_bin() as b:
-        amostra = b.read(1 << 20)
-    try:
-        amostra.decode("utf-8")
-        enc = "utf-8-sig"
-    except UnicodeDecodeError:
-        enc = "latin-1"
-    b = abrir_bin()
-    try:
-        yield io.TextIOWrapper(b, encoding=enc, newline="")
-    finally:
-        b.close()
-        if z:
-            z.close()
 
 
 def _num(v: str) -> str:

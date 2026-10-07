@@ -14,6 +14,7 @@ Funil de inteligência territorial B2B para Curitiba. Cruza a base de empresas d
 - [Instalação](#instalação)
 - [Configuração](#configuração)
 - [Rodando o M0](#rodando-o-m0)
+- [Rodando o M1](#rodando-o-m1)
 - [Rodando o M2](#rodando-o-m2)
 - [O que sai no banco](#o-que-sai-no-banco)
 - [Geocodificação: como ler os níveis](#geocodificação-como-ler-os-níveis)
@@ -50,7 +51,7 @@ Funil de inteligência territorial B2B para Curitiba. Cruza a base de empresas d
 |---|---|---|
 | **M0** Fundação territorial | Setores IBGE, camadas IPPUC, CNEFE, recorte de CNPJs, geocodificação em 10 níveis com erro medido em metros, chave territorial | **Pronto e testado com dados sintéticos.** Falta a primeira rodada com dados reais |
 | **M2** Enriquecimento e indicadores | Perfil do ponto, domiciliação, histórico do ponto, redes, uso x zoneamento, saturação (QL), sobrevivência por coorte, densidade H3, movimentos mensais, raio-x, cruzamentos PNCP/TCE-PR/PGFN/sanções, edificações do Overture, exportação GeoParquet | **Pronto e testado com dados sintéticos** |
-| M1 Prefeitura e IPPUC | Alvarás (cruzamento CNPJ × alvará), licitações, 156, SIGMU, unidades de atendimento, transporte | Inventário pronto (`portal_inventario`); ETLs depois do inventário |
+| M1 Prefeitura e IPPUC | Alvarás (cruzamento CNPJ × alvará), licitações, 156, SIGMU, unidades de atendimento, transporte | Inventário e alvarás prontos; demais bases em andamento |
 | M1-seg Segurança | CAPE/SESP-PR, Guarda Municipal, Bombeiros, Defesa Civil | Pedidos via LAI em rascunho |
 | M1b Listas com CNPJ | MDIC, BNDES, IBAMA, IAT, CADASTUR, ANATEL, MAPA, e-MEC, CNES, ANP | Planejado |
 | M3 Plataforma | Publicação dos agregados no módulo Pineal | Planejado |
@@ -235,6 +236,43 @@ WHERE run_id = (SELECT run_id FROM execucao ORDER BY id DESC LIMIT 1) AND tipo =
 
 ---
 
+## Rodando o M1
+
+Bases da prefeitura, depois do M0:
+
+```bash
+python -m etl.m1
+```
+
+| Etapa | Comando isolado | O que faz |
+|---|---|---|
+| `alvaras` | `python -m etl.fontes.pmc_alvaras [--arquivo ...]` | Base de Alvarás: carga, geocodificação e cruzamento com os CNPJs; grava `relatorios/alvaras.md` |
+
+Os arquivos vêm do portal (o mais recente de cada base, achado pelo cliente `etl/portal.py`) ou de `dados/bruto/<fonte>/`, se você já tiver baixado.
+
+### Alvarás x CNPJ
+
+A Base de Alvarás não tem CNPJ. O cruzamento (`sql/50_alvaras.sql`) procura a empresa no mesmo CEP e logradouro e pontua de 0 a 1:
+
+| Componente | Peso |
+|---|---|
+| Similaridade de nome (melhor par entre nome empresarial/fantasia do alvará e razão social/fantasia da empresa) | 0,5 |
+| CNAE principal igual | 0,25 |
+| Mesma data de início de atividade | 0,25 |
+
+Mesmo número de porta vale pontuação cheia (`mesmo_endereco`); só a mesma rua, 80% (`mesma_rua`). O par é aceito a partir de 0,5, e cada alvará e cada CNPJ entram em um par só. MEI, que não tem razão social no banco (LGPD), casa por nome fantasia, CNAE e data.
+
+| Tabela | Conteúdo |
+|---|---|
+| `alvara` | Alvarás com nome fantasia, datas de início, emissão e expiração, endereço, CNAE principal e secundários, geocodificação. **Sem nome empresarial**: no MEI ele é o nome da pessoa, e só existe numa tabela temporária durante o cruzamento |
+| `alvara_cnpj` | Par alvará x CNPJ com método, pontuação, similaridade de nome, CNAE igual e data igual |
+| `empresa_alvara` | Sinais por CNPJ: `tem_alvara`, `ativa_sem_alvara` (ativa em ponto comercial, fora de domiciliação, sem alvará), `alvara_de_cnpj_encerrado`, `alvara_vencido`, `atividade_diverge` (classe CNAE diferente), `chegada_ao_endereco` (início no alvará posterior à abertura do CNPJ) |
+| `alvara_sem_cnpj` (view) | Alvarás sem par: fora do recorte, CNPJ de outra cidade ou nome muito diferente |
+
+Para refazer o cruzamento depois de atualizar o M0, rode `python -m etl.m1 --so alvaras` de novo: o arquivo já baixado é reaproveitado.
+
+---
+
 ## Rodando o M2
 
 Depois do M0:
@@ -383,6 +421,8 @@ Sem `PINEAL_TEST_DSN`, só os testes sem banco rodam e os demais são pulados. N
 | `tests/test_geocodificar.py` | Cada nível da geocodificação, erro em metros, chave territorial com H3, desempate na divisa e em zonas sobrepostas |
 | `tests/test_leitura.py` | Leitura do CNEFE (zip, Latin-1, vírgula decimal, filtro de município), links do portal, descrição de CSV sem vazar valores |
 | `tests/test_m2.py` | Perfil do ponto, domiciliação, rede, ponto vago, zoneamento, QL, coortes, densidade, raio-x, movimentos entre competências, apoio, cruzamentos, edificações, exportação sem dados pessoais |
+| `tests/test_portal.py` | Cliente do portal: metadados, colunas e lista de arquivos no formato real |
+| `tests/test_m1.py` | Alvarás: carga em Windows-1252 com `;`, cruzamento por endereço, nome, CNAE e data, sinais e LGPD (nome empresarial não persiste) |
 | `tests/test_m0.py` | M0 e M2 de ponta a ponta com shapefile zipado, camada sem `.prj`, GeoJSON, GPKG, CNEFE e um `cnpj_consolidado` falso: LGPD, datas, schema configurável, `run_id`, etapa com erro registrada, segunda rodada sem duplicar |
 
 ---
@@ -423,17 +463,20 @@ pineal-curitiba/
 │   ├── 01_normalizacao.sql    normalização de endereço, nome, datas, máscara de CPF
 │   ├── 02_apoio.sql           porte, situação, CNAE, natureza jurídica, regras de zoneamento
 │   ├── 10_geocodificar.sql    núcleo da geocodificação em níveis
+│   ├── 05_m1_schema.sql       tabelas e funções do M1 (datas, CNAE e valores do portal)
 │   ├── 20_territorio.sql      chave territorial com desempate
 │   ├── 30_enriquecimento.sql  perfil do ponto, domiciliação, rede, ponto comercial, zoneamento
-│   └── 40_m2.sql              saturação, sobrevivência, densidade, movimentos, raio_x
+│   ├── 40_m2.sql              saturação, sobrevivência, densidade, movimentos, raio_x
+│   └── 50_alvaras.sql         cruzamento alvará x CNPJ e sinais
 ├── etl/
 │   ├── config.py, db.py       .env, schema, run_id, conexão, registro de etapas e cargas
 │   ├── baixar.py, geo.py      download com cache; leitura de camadas vetoriais
 │   ├── fontes/                ibge_setores, ibge_cnefe, ippuc, cnpj_recorte, portal_inventario,
-│   │                          apoio, mindata_cruzamentos, overture_edificacoes
+│   │                          apoio, mindata_cruzamentos, overture_edificacoes, pmc_alvaras
 │   ├── geocodificar.py, avaliar_geocodificacao.py, territorio.py
 │   ├── enriquecer.py, indicadores.py, exportar.py
-│   └── m0.py, m2.py           orquestradores
+│   ├── portal.py, leitura.py  cliente do portal da prefeitura; leitura de CSV grande
+│   └── m0.py, m1.py, m2.py    orquestradores
 ├── tests/
 ├── dados/                     arquivos baixados e exportados (fora do git)
 └── relatorios/                relatórios gerados (fora do git)
