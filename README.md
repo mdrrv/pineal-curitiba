@@ -380,7 +380,7 @@ python -m etl.m2 --so enriquecer --so indicadores --so exportar
 | `empresa_perfil.domiciliacao` | O endereço é de contabilidade ou escritório virtual (20+ CNPJs ativos)? Essas empresas saem dos indicadores por bairro |
 | `empresa_perfil.ativos_da_raiz_na_cidade`, `filial` | É rede ou independente? Quantos pontos tem na cidade? |
 | `ponto_comercial` | Quantos CNPJs já passaram pelo endereço, com que rotatividade, e se está vago (sem ativos, último encerramento nos últimos 3 anos) |
-| `uso_zoneamento` | A atividade é permitida na zona? Só onde há regra em `zona_regra` (preencher a partir da Lei de Zoneamento) |
+| `uso_zoneamento` | A atividade é permitida na zona? Só onde há regra em `zona_regra`, carregada de `apoio/zona_regra.csv` (ver [Regras de zoneamento](#regras-de-zoneamento)) |
 | `m2_saturacao_bairro.ql` | O bairro concentra a atividade mais que a cidade (QL > 1) ou tem espaço livre (QL < 1)? |
 | `m2_sobrevivencia` | Quantas empresas abertas em cada ano seguem vivas 1, 3 e 5 anos depois, por divisão CNAE |
 | `m2_densidade_h3` | Quantas empresas ativas há em cada hexágono de cerca de 0,1 km², por divisão |
@@ -412,6 +412,27 @@ SELECT * FROM moradores_raio(-25.4284, -49.2733, 500);
 -- onde faltam farmácias (classe 47717)
 SELECT bairro, ativos, esperado, lacuna FROM m2_espaco_livre WHERE classe = '47717' ORDER BY lacuna DESC LIMIT 10;
 ```
+
+### Regras de zoneamento
+
+`zona_regra` vem de `apoio/zona_regra.csv`, versionado no repositório e preenchido a partir da Lei de Zoneamento (15.511/2019), dos anexos e dos decretos. O arquivo começa vazio: nenhuma regra entra sem a fonte.
+
+```bash
+python -m etl.fontes.zona_regra --modelo      # relatorios/zona_regra_modelo.csv: zona x divisão CNAE com empresas ativas
+# preencha permitido (S/N) e fonte (artigo, anexo, decreto) e copie as linhas para apoio/zona_regra.csv
+python -m etl.fontes.zona_regra               # valida e carrega (substitui zona_regra inteira)
+python -m etl.enriquecer                      # atualiza uso_zoneamento
+python -m etl.fontes.zona_regra --amostra 50  # relatorios/uso_zoneamento_amostra.csv para revisar
+```
+
+| Coluna | Regra |
+|---|---|
+| `zona` | Código como está em `empresa_geo.zona` (código da camada do IPPUC, ou o nome se não houver código). Zona que não existe na camada dá erro |
+| `cnae_prefixo` | 2 a 7 dígitos; vale o prefixo mais longo (`47` todo o varejo, `4711` supermercados) |
+| `permitido` | S ou N (aceita sim/não, true/false, 1/0) |
+| `fonte` | Obrigatória |
+
+A carga recusa o arquivo inteiro se houver erro, com a linha de cada um. A amostra sorteia, de forma reproduzível, empresas ativas classificadas fora do uso (CNPJ, zona, CNAE, regra aplicada e a fonte dela, coordenada), com colunas para marcar se confere. Só use `uso_zoneamento` como sinal de lead depois dessa revisão: o ponto pode estar na zona vizinha (precisão da geocodificação) e há usos tolerados ou anteriores à lei.
 
 ### Risco de fechamento e score de lead
 
@@ -617,6 +638,8 @@ pineal-curitiba/
 ├── docs/
 │   ├── fontes.md              fontes comentadas, por tema
 │   └── pedidos-lai.md         rascunhos dos pedidos de acesso à informação
+├── apoio/
+│   └── zona_regra.csv         regras de uso por zona (preencher a partir da lei)
 ├── sql/
 │   ├── 00_schema.sql          tabelas
 │   ├── 01_normalizacao.sql    normalização de endereço, nome, datas, máscara de CPF
@@ -638,7 +661,7 @@ pineal-curitiba/
 │   ├── fontes/                ibge_setores, ibge_cnefe, ippuc, cnpj_recorte, portal_inventario,
 │   │                          apoio, mindata_cruzamentos, overture_edificacoes, pmc_alvaras,
 │   │                          pmc_licitacoes, pmc_zeladoria, pmc_unidades, urbs_gtfs,
-│   │                          pmc_sigesguarda, listas_cnpj, ibge_censo_setor, osm_vias
+│   │                          pmc_sigesguarda, listas_cnpj, ibge_censo_setor, osm_vias, zona_regra
 │   ├── geocodificar.py, avaliar_geocodificacao.py, territorio.py
 │   ├── enriquecer.py, indicadores.py, exportar.py
 │   ├── isocronas.py           isócronas a pé e de ônibus
