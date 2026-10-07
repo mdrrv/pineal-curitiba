@@ -135,6 +135,14 @@ O recorte de CNPJs usa `uf = PINEAL_UF AND (municipio = PINEAL_COD_RFB OR upper(
 
 ## Rodando o M0
 
+### 0. Verificação (recomendado antes da primeira rodada)
+
+```bash
+python -m etl.verificar            # ou --sem-rede
+```
+
+Não baixa nem grava dados. Confere o banco do Pineal (conexão, PostGIS, `unaccent`, `pg_trgm`, permissão de criar o schema), o banco da MINDATA (`dados_rfb.cnpj_consolidado` com o município, tabelas dos cruzamentos), cada host de fonte do catálogo (e quais fontes ele afeta), os arquivos já em `dados/bruto/` (inclusive downloads interrompidos), o espaço em disco e o tippecanoe. Grava `relatorios/verificacao.md` e sai com código 1 se houver **falha**; **aviso** só desliga a parte que depende dele (um host bloqueado, por exemplo, pede o arquivo baixado à mão em `dados/bruto/<fonte>/`).
+
 ### 1. Inventário do portal da prefeitura (opcional, recomendado)
 
 ```bash
@@ -705,6 +713,7 @@ pineal-curitiba/
 │   ├── isocronas.py           isócronas a pé e de ônibus
 │   ├── score.py               risco de fechamento, validação e score de lead
 │   ├── publicar.py            pacote de publicação para a plataforma (M3)
+│   ├── verificar.py           verificação antes da rodada (bancos, hosts, arquivos, disco)
 │   ├── portal.py, leitura.py  cliente do portal da prefeitura; leitura de CSV grande
 │   └── m0.py, m1.py, m2.py    orquestradores
 ├── scripts/pmtiles.sh         camadas do pacote de publicação -> PMTiles (tippecanoe)
