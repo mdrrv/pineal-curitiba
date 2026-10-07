@@ -71,6 +71,29 @@ Funil de inteligência territorial B2B para Curitiba. Cruza a base de empresas d
   ```sql
   CREATE EXTENSION postgis; CREATE EXTENSION unaccent; CREATE EXTENSION pg_trgm;
   ```
+- **Máquina:** 8 GB de RAM bastam (o maior pico, na exportação, foi de 2,1 GB) e uns 30 GB livres em disco para os arquivos baixados e o banco.
+
+### Tempo de referência
+
+Medido numa Curitiba sintética do tamanho real (`scripts/volume_sintetico.py`: 1 milhão de endereços do CNEFE, 1 milhão de CNPJs, 250 mil alvarás, 300 mil ocorrências, 14 mil pontos de ônibus), com 4 núcleos, 15 GB de RAM e PostgreSQL 16 sem ajuste de configuração. A rodada inteira leva **cerca de 15 minutos**:
+
+| Etapa | Tempo | Pico de memória (Python) |
+|---|---:|---:|
+| CNEFE | 1 min 45 s | 160 MB |
+| Recorte de CNPJs | 53 s | 160 MB |
+| Geocodificação | 2 min 40 s | 160 MB |
+| Chave territorial | 1 min 46 s | 190 MB |
+| Alvarás x CNPJ | 2 min | 40 MB |
+| SiGesGuarda e índice de risco | 1 min 6 s | 50 MB |
+| Enriquecimento e indicadores | 25 s | 130 MB |
+| Risco e score de lead | 1 min 22 s | 840 MB |
+| Exportação GeoParquet | 27 s | 2,1 GB |
+| Rede de caminhada | 53 s | 280 MB |
+| Isócrona de ônibus (20 min) | 11 s | 460 MB |
+| Publicação | 26 s | 470 MB |
+| Demais etapas | menos de 10 s cada | |
+
+Os dados reais têm grafias e casos que o sintético não tem; se uma etapa passar muito disso, o log de `execucao` (`duracao_s`) mostra qual. Para refazer a medição numa máquina: `scripts/medir_volume.sh "<dsn de um banco descartável>" <pasta> [fator]` (o banco é zerado).
 
 ---
 
