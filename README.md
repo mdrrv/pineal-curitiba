@@ -135,6 +135,16 @@ O recorte de CNPJs usa `uf = PINEAL_UF AND (municipio = PINEAL_COD_RFB OR upper(
 
 ## Rodando o M0
 
+### Tudo de uma vez
+
+```bash
+python -m etl.tudo                          # verificação + todas as etapas, na ordem das dependências
+python -m etl.tudo --pular vias --pular edificacoes
+python -m etl.tudo --retomar <run_id>       # depois de uma falha: refaz só o que faltou
+```
+
+Ordem: fundação (M0), depois apoio, Censo, cruzamentos, edificações e enriquecimento (os alvarás usam o perfil do ponto), depois as bases da prefeitura e as listas (M1), depois indicadores, score e exportação, a rede de caminhada e a publicação. Etapa de fonte externa que falha (host fora, arquivo ausente) fica registrada e a rodada segue sem ela; etapa essencial que falha interrompe. O resumo, com o `run_id` para retomar, vai para `relatorios/rodada.md`. As seções abaixo descrevem cada passo, para rodar ou refazer um de cada vez.
+
 ### 0. Verificação (recomendado antes da primeira rodada)
 
 ```bash
@@ -714,6 +724,7 @@ pineal-curitiba/
 │   ├── score.py               risco de fechamento, validação e score de lead
 │   ├── publicar.py            pacote de publicação para a plataforma (M3)
 │   ├── verificar.py           verificação antes da rodada (bancos, hosts, arquivos, disco)
+│   ├── tudo.py                rodada inteira na ordem das dependências, com retomada
 │   ├── portal.py, leitura.py  cliente do portal da prefeitura; leitura de CSV grande
 │   └── m0.py, m1.py, m2.py    orquestradores
 ├── scripts/pmtiles.sh         camadas do pacote de publicação -> PMTiles (tippecanoe)
