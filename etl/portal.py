@@ -102,8 +102,9 @@ def ler_lista(tabela_html: str) -> list[Arquivo]:
     return arquivos
 
 
-def arquivos(chave: str, aba: str) -> list[Arquivo]:
-    saida, pagina, total = [], 1, 1
+def paginas(chave: str, aba: str):
+    """Páginas da lista de arquivos, na ordem do portal (do mais novo para o mais antigo)."""
+    pagina, total = 1, 1
     while pagina <= total:
         d = _get(
             f"{BASE}/ConjuntoDado/DownloadArquivos/",
@@ -114,10 +115,13 @@ def arquivos(chave: str, aba: str) -> list[Arquivo]:
         ).json()
         if not d.get("sucesso"):
             raise RuntimeError(f"portal recusou a lista de arquivos de {chave}: {d.get('erro')}")
-        saida += ler_lista(d["tabela"])
+        yield ler_lista(d["tabela"])
         total = (d.get("paginacao") or {}).get("totalPaginas") or 1
         pagina += 1
-    return saida
+
+
+def arquivos(chave: str, aba: str) -> list[Arquivo]:
+    return [a for p in paginas(chave, aba) for a in p]
 
 
 def mais_recente(chave: str, extensao: str = "csv", padrao: str | None = None) -> Arquivo:
@@ -125,11 +129,29 @@ def mais_recente(chave: str, extensao: str = "csv", padrao: str | None = None) -
     c = detalhe(chave)
     if extensao not in c.extensoes:
         raise FileNotFoundError(f"conjunto {chave} não tem arquivos .{extensao} (tem: {list(c.extensoes)})")
-    lista = arquivos(chave, c.extensoes[extensao])
-    if padrao:
-        lista = [a for a in lista if re.search(padrao, a.nome, re.I)]
+    lista = []
+    for p in paginas(chave, c.extensoes[extensao]):
+        lista += [a for a in p if not padrao or re.search(padrao, a.nome, re.I)]
+        if lista and padrao:
+            break  # o portal lista do mais novo para o mais antigo: a primeira página com o arquivo basta
     if not lista:
         raise FileNotFoundError(
             f"nenhum arquivo .{extensao} em {chave}" + (f" casando com /{padrao}/" if padrao else "")
         )
     return max(lista, key=lambda a: (a.atualizado or datetime.min, a.nome))
+
+
+def obter(fonte_id: str, padrao: str, arquivo: str | None = None, extensao: str = "csv"):
+    """Arquivo de uma fonte do portal: o informado, o que estiver em dados/bruto/<fonte>/ casando com
+    `padrao`, ou o mais recente do portal (baixado com cache). Devolve (caminho, origem)."""
+    from pathlib import Path
+
+    from etl import config
+
+    if arquivo:
+        return Path(arquivo), arquivo
+    local = baixar.arquivo_local(fonte_id, padrao)
+    if local:
+        return local, str(local)
+    a = mais_recente(config.fonte(fonte_id)["portal_chave"], extensao=extensao, padrao=padrao)
+    return baixar.baixar(a.url, fonte_id), a.url

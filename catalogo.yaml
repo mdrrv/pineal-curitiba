@@ -125,22 +125,24 @@ fontes:
     nome: Licitações e Contratações
     dono: SMATI
     fase: M1
-    status: inventariado
+    status: ativo
     chaves: [cnpj]
     portal_chave: c64c1152-97d0-4343-b0b6-42edb5cecef2
     dicionario: https://mid-transparencia.curitiba.pr.gov.br/home/Dicionario_Licitacoes_Contratacoes_19082020.pdf
     frequencia: mensal
     obs: "itens de processo com Contratato/Fornecedor, CNPJ/CPF, número e vigência do contrato, valor unitário e total"
+    script: etl/fontes/pmc_licitacoes.py
 
   - id: pmc_licitacoes_covid
     nome: Licitações e Contratações COVID-19
     dono: SMATI
     fase: M1
-    status: inventariado
+    status: ativo
     chaves: [cnpj]
     portal_chave: 0f088a07-ea01-4639-93e8-7a22c05e94c6
     frequencia: mensal
     obs: "mesmo layout de pmc_licitacoes"
+    script: etl/fontes/pmc_licitacoes.py
 
   - id: pmc_receitas_despesas
     nome: Base de receitas e despesas
@@ -167,20 +169,24 @@ fontes:
     nome: SIAC 156 (solicitações do cidadão)
     dono: Secretaria do Governo Municipal
     fase: M1
-    status: inventariado
+    status: ativo
     chaves: [end, terr]
     portal_chave: 0d5a7b06-3940-4be9-876e-bc8f23e96530
     uso: zeladoria por bairro
     frequencia: diária
     obs: "Tipo, Orgao, DataCriacao, Assunto, Subdivisao, Situacao, Logradouro (sem número), Bairro, Regional, DataResposta, Origem"
+    script: etl/fontes/pmc_zeladoria.py
 
   - id: pmc_sigmu
     nome: SIGMU (manutenção urbana)
     dono: Secretaria do Governo Municipal
     fase: M1
-    status: a_conferir
-    chaves: [end, terr]
+    status: ativo
+    chaves: [terr]
     portal_chave: 236fb6f7-f2a0-4b04-99b3-5be5eb34672d
+    script: etl/fontes/pmc_zeladoria.py
+    frequencia: diária
+    obs: "base relacional com ~50 tabelas; o ETL usa SERVICO_SOLICITADO (pedido, bairro, datas) e SERVICO_TAB (descrição do serviço)"
 
   - id: pmc_sigesguarda
     nome: SiGesGuarda (ocorrências da Guarda Municipal)
@@ -196,12 +202,13 @@ fontes:
     nome: Unidades de Atendimento de Curitiba (ativas)
     dono: IPPUC
     fase: M1
-    status: inventariado
+    status: ativo
     chaves: [end]
     portal_chave: 680ed5ed-c8b7-4e81-a2af-637d2757027a
     uso: polos de atração (UBS, escolas, Ruas da Cidadania, terminais)
     frequencia: mensal
     obs: "sem coordenada: NM_RUA, NUMERO_EQUI, NM_BAIRRO, NM_REGIONAL; tema, tipo e subtipo do equipamento, dependência administrativa, turnos"
+    script: etl/fontes/pmc_unidades.py
 
   - id: pmc_transporte
     nome: Transporte Coletivo (GTFS, linhas, pontos, posição)
@@ -212,6 +219,7 @@ fontes:
     portal_chave: ca40f13b-ef61-472b-810f-dd705f85fd2e
     frequencia: tempo real
     obs: "sem arquivo no portal: só webservice da URBS (transporteservico.urbs.curitiba.pr.gov.br), com chave de acesso"
+    ver: urbs_gtfs
 
   - id: pmc_esaude_medico
     nome: E-Saúde, atendimento médico
@@ -310,6 +318,16 @@ fontes:
     status: a_conferir
     chaves: [cnpj, end]
     obs: fora do portal de dados abertos; localizar endpoint do painel
+
+  - id: urbs_gtfs
+    nome: Transporte coletivo em GTFS (pontos, linhas, horários)
+    dono: URBS
+    fase: M1
+    status: a_conferir
+    chaves: [geo]
+    url: null   # sem arquivo público conhecido: coloque o zip em dados/bruto/urbs_gtfs/ ou informe a URL
+    obs: "pedir o GTFS à URBS (pedido 6 de docs/pedidos-lai.md) ou usar um feed de agregador; o ETL lê qualquer GTFS padrão"
+    script: etl/fontes/urbs_gtfs.py
 
   - id: setran_autuacoes
     nome: Autuações de trânsito por local (2019 em diante)

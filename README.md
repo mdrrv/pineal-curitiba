@@ -51,7 +51,7 @@ Funil de inteligência territorial B2B para Curitiba. Cruza a base de empresas d
 |---|---|---|
 | **M0** Fundação territorial | Setores IBGE, camadas IPPUC, CNEFE, recorte de CNPJs, geocodificação em 10 níveis com erro medido em metros, chave territorial | **Pronto e testado com dados sintéticos.** Falta a primeira rodada com dados reais |
 | **M2** Enriquecimento e indicadores | Perfil do ponto, domiciliação, histórico do ponto, redes, uso x zoneamento, saturação (QL), sobrevivência por coorte, densidade H3, movimentos mensais, raio-x, cruzamentos PNCP/TCE-PR/PGFN/sanções, edificações do Overture, exportação GeoParquet | **Pronto e testado com dados sintéticos** |
-| M1 Prefeitura e IPPUC | Alvarás (cruzamento CNPJ × alvará), licitações, 156, SIGMU, unidades de atendimento, transporte | Inventário e alvarás prontos; demais bases em andamento |
+| **M1** Prefeitura e IPPUC | Alvarás (cruzamento CNPJ × alvará), licitações, 156, SIGMU, unidades de atendimento, transporte (GTFS) | **Pronto e testado com arquivos sintéticos no layout real.** Painel de Obras e autuações da Setran sem fonte em arquivo (#22) |
 | M1-seg Segurança | CAPE/SESP-PR, Guarda Municipal, Bombeiros, Defesa Civil | Pedidos via LAI em rascunho |
 | M1b Listas com CNPJ | MDIC, BNDES, IBAMA, IAT, CADASTUR, ANATEL, MAPA, e-MEC, CNES, ANP | Planejado |
 | M3 Plataforma | Publicação dos agregados no módulo Pineal | Planejado |
@@ -247,6 +247,10 @@ python -m etl.m1
 | Etapa | Comando isolado | O que faz |
 |---|---|---|
 | `alvaras` | `python -m etl.fontes.pmc_alvaras [--arquivo ...]` | Base de Alvarás: carga, geocodificação e cruzamento com os CNPJs; grava `relatorios/alvaras.md` |
+| `licitacoes` | `python -m etl.fontes.pmc_licitacoes` | Licitações e Contratações (e a base da COVID-19): itens por CNPJ e resumo em `empresa_contratos_pmc` |
+| `zeladoria` | `python -m etl.fontes.pmc_zeladoria` | 156 e SIGMU agregados por bairro, mês e assunto/serviço, com tempo de resposta |
+| `unidades` | `python -m etl.fontes.pmc_unidades` | Unidades de Atendimento geocodificadas (escolas, UBS, Ruas da Cidadania...) com H3 |
+| `transporte` | `python -m etl.fontes.urbs_gtfs [--arquivo gtfs.zip]` | Pontos de ônibus com linhas e partidas, e agregado por hexágono, a partir de um GTFS |
 
 Os arquivos vêm do portal (o mais recente de cada base, achado pelo cliente `etl/portal.py`) ou de `dados/bruto/<fonte>/`, se você já tiver baixado.
 
@@ -270,6 +274,17 @@ Mesmo número de porta vale pontuação cheia (`mesmo_endereco`); só a mesma ru
 | `alvara_sem_cnpj` (view) | Alvarás sem par: fora do recorte, CNPJ de outra cidade ou nome muito diferente |
 
 Para refazer o cruzamento depois de atualizar o M0, rode `python -m etl.m1 --so alvaras` de novo: o arquivo já baixado é reaproveitado.
+
+### Demais bases do M1
+
+| Tabela | Conteúdo | Observações |
+|---|---|---|
+| `contrato_pmc_item` | Itens de licitação e contratação: órgão, processo, modalidade, item, quantidade, CNPJ, contrato, vigência, valores | Fornecedor pessoa física fica com `cnpj` nulo e sem nome (LGPD) |
+| `empresa_contratos_pmc` | Por CNPJ: contratos, itens, valor total, contratos vigentes, fim do último contrato, se tem estabelecimento em Curitiba | Fornecedor da prefeitura é lead e sinal de capacidade |
+| `siac156_bairro_mes` | Pedidos ao 156 por bairro, regional, mês, tipo e assunto, com quantos foram respondidos e o tempo mediano de resposta | Zeladoria e problemas urbanos por bairro |
+| `sigmu_bairro_mes` | Pedidos de manutenção urbana por bairro, mês e serviço, com quantos foram realizados e o tempo mediano | Da SIGMU só entram `SERVICO_SOLICITADO` e `SERVICO_TAB`; texto livre e solicitante ficam de fora |
+| `unidade_atendimento` | Equipamentos públicos e privados com tema, tipo, dependência administrativa, turnos e localização | Sem CEP na base: geocodificação pelos níveis sem CEP |
+| `onibus_ponto`, `onibus_h3` | Pontos de ônibus com número de linhas e de partidas no feed; soma por hexágono | O portal não publica arquivo do transporte: o ETL lê um GTFS em `dados/bruto/urbs_gtfs/` (ver pedido 6 em `docs/pedidos-lai.md`) |
 
 ---
 
@@ -422,7 +437,7 @@ Sem `PINEAL_TEST_DSN`, só os testes sem banco rodam e os demais são pulados. N
 | `tests/test_leitura.py` | Leitura do CNEFE (zip, Latin-1, vírgula decimal, filtro de município), links do portal, descrição de CSV sem vazar valores |
 | `tests/test_m2.py` | Perfil do ponto, domiciliação, rede, ponto vago, zoneamento, QL, coortes, densidade, raio-x, movimentos entre competências, apoio, cruzamentos, edificações, exportação sem dados pessoais |
 | `tests/test_portal.py` | Cliente do portal: metadados, colunas e lista de arquivos no formato real |
-| `tests/test_m1.py` | Alvarás: carga em Windows-1252 com `;`, cruzamento por endereço, nome, CNAE e data, sinais e LGPD (nome empresarial não persiste) |
+| `tests/test_m1.py` | Alvarás (carga em Windows-1252 com `;`, cruzamento, sinais, LGPD), licitações, 156, SIGMU, unidades, GTFS e o orquestrador do M1 |
 | `tests/test_m0.py` | M0 e M2 de ponta a ponta com shapefile zipado, camada sem `.prj`, GeoJSON, GPKG, CNEFE e um `cnpj_consolidado` falso: LGPD, datas, schema configurável, `run_id`, etapa com erro registrada, segunda rodada sem duplicar |
 
 ---
@@ -472,7 +487,8 @@ pineal-curitiba/
 │   ├── config.py, db.py       .env, schema, run_id, conexão, registro de etapas e cargas
 │   ├── baixar.py, geo.py      download com cache; leitura de camadas vetoriais
 │   ├── fontes/                ibge_setores, ibge_cnefe, ippuc, cnpj_recorte, portal_inventario,
-│   │                          apoio, mindata_cruzamentos, overture_edificacoes, pmc_alvaras
+│   │                          apoio, mindata_cruzamentos, overture_edificacoes, pmc_alvaras,
+│   │                          pmc_licitacoes, pmc_zeladoria, pmc_unidades, urbs_gtfs
 │   ├── geocodificar.py, avaliar_geocodificacao.py, territorio.py
 │   ├── enriquecer.py, indicadores.py, exportar.py
 │   ├── portal.py, leitura.py  cliente do portal da prefeitura; leitura de CSV grande

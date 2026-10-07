@@ -2,6 +2,9 @@
 
 import csv
 import io
+import re
+import tempfile
+import unicodedata
 import zipfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -38,18 +41,45 @@ def abrir_texto(caminho: Path, padrao_interno: str = ".csv"):
             z.close()
 
 
+def norm_coluna(nome: str) -> str:
+    """'Órgão' -> 'ORGAO', 'CNPJ/CPF' -> 'CNPJ_CPF', 'Valor Total/Global' -> 'VALOR_TOTAL_GLOBAL'."""
+    s = unicodedata.normalize("NFKD", nome.strip()).encode("ascii", "ignore").decode()
+    return re.sub(r"[^A-Z0-9]+", "_", s.upper()).strip("_")
+
+
 def separador(primeira_linha: str) -> str:
     return max([";", ",", "\t", "|"], key=primeira_linha.count)
 
 
 @contextmanager
 def ler_csv(caminho: Path, obrigatorias: list[str] = ()):
-    """DictReader com cabeçalho em maiúsculas e sem espaços nas pontas. Falha se faltar coluna obrigatória."""
+    """DictReader com cabeçalho normalizado (norm_coluna). Falha se faltar coluna obrigatória."""
     with abrir_texto(caminho) as txt:
         primeira = txt.readline()
         sep = separador(primeira)
-        cab = [c.strip().upper() for c in next(csv.reader([primeira], delimiter=sep))]
-        faltando = [c for c in obrigatorias if c.upper() not in cab]
+        cab = [norm_coluna(c) for c in next(csv.reader([primeira], delimiter=sep))]
+        faltando = [c for c in obrigatorias if norm_coluna(c) not in cab]
         if faltando:
             raise ValueError(f"colunas ausentes em {Path(caminho).name}: {faltando}. Cabeçalho: {cab}")
         yield csv.DictReader(txt, fieldnames=cab, delimiter=sep)
+
+
+def copiar_para_temp(conn, caminho: Path, tabela: str, colunas: dict[str, str], obrigatorias: list[str] = ()) -> int:
+    """Copia as colunas escolhidas do CSV para uma tabela temporária (texto), sem passar o resto do arquivo.
+
+    colunas: {coluna_no_csv (qualquer grafia): nome_na_tabela}. Coluna ausente no CSV vira NULL.
+    """
+    origem = {norm_coluna(k): v for k, v in colunas.items()}
+    with ler_csv(caminho, obrigatorias) as leitor, tempfile.TemporaryFile("w+", encoding="utf-8", newline="") as tmp:
+        w = csv.writer(tmp)
+        n = 0
+        for r in leitor:
+            w.writerow([r.get(k) or "" for k in origem])
+            n += 1
+        tmp.seek(0)
+        with conn.cursor() as cur:
+            cur.execute(
+                f"CREATE TEMP TABLE {tabela} ({', '.join(v + ' TEXT' for v in origem.values())}) ON COMMIT DROP"
+            )
+            cur.copy_expert(f"COPY {tabela} ({', '.join(origem.values())}) FROM STDIN WITH (FORMAT csv)", tmp)
+    return n

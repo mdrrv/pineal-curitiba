@@ -78,3 +78,82 @@ CREATE TABLE IF NOT EXISTS alvara_cnpj (
     cnae_igual      BOOLEAN,
     inicio_igual    BOOLEAN
 );
+
+-- Licitações e contratações da prefeitura (itens de processo). Só CNPJ: fornecedor pessoa física (CPF)
+-- fica com cnpj NULL e sem nome.
+CREATE TABLE IF NOT EXISTS contrato_pmc_item (
+    base            TEXT NOT NULL,          -- pmc_licitacoes | pmc_licitacoes_covid
+    orgao           TEXT,
+    processo        TEXT,
+    modalidade      TEXT,
+    item            TEXT,
+    quantidade      NUMERIC,
+    unidade_medida  TEXT,
+    cnpj            VARCHAR(14),
+    pessoa_fisica   BOOLEAN NOT NULL DEFAULT false,
+    contrato        TEXT,
+    inicio_vigencia DATE,
+    fim_vigencia    DATE,
+    valor_unitario  NUMERIC,
+    valor_total     NUMERIC
+);
+CREATE INDEX IF NOT EXISTS contrato_pmc_item_cnpj ON contrato_pmc_item (cnpj);
+
+-- 156 (solicitações do cidadão) agregado por bairro, mês e assunto. Sem texto livre nem solicitante.
+CREATE TABLE IF NOT EXISTS siac156_bairro_mes (
+    bairro          TEXT,
+    regional        TEXT,
+    mes             DATE,
+    tipo            TEXT,
+    assunto         TEXT,
+    solicitacoes    INT,
+    respondidas     INT,
+    dias_resposta_mediana NUMERIC
+);
+
+-- SIGMU (manutenção urbana) agregado por bairro, mês e serviço.
+CREATE TABLE IF NOT EXISTS sigmu_bairro_mes (
+    bairro          TEXT,
+    mes             DATE,
+    servico         TEXT,
+    solicitacoes    INT,
+    realizadas      INT,
+    dias_realizacao_mediana NUMERIC
+);
+
+-- Unidades de atendimento (equipamentos públicos e privados), geocodificadas pelo núcleo.
+CREATE TABLE IF NOT EXISTS unidade_atendimento (
+    codigo          TEXT PRIMARY KEY,
+    nome            TEXT,
+    tema            TEXT,
+    tipo            TEXT,
+    subtipo         TEXT,
+    dependencia     TEXT,
+    turnos          TEXT,
+    logradouro      TEXT,
+    numero          TEXT,
+    bairro          TEXT,
+    regional        TEXT,
+    geo_precisao    TEXT,
+    geom            geometry(Point, 4326),
+    h3_9            TEXT
+);
+CREATE INDEX IF NOT EXISTS unidade_atendimento_geom ON unidade_atendimento USING gist (geom);
+
+-- Transporte coletivo (GTFS): pontos com linhas e partidas, e agregado por hexágono.
+CREATE TABLE IF NOT EXISTS onibus_ponto (
+    stop_id     TEXT PRIMARY KEY,
+    nome        TEXT,
+    linhas      INT,
+    partidas    INT,
+    h3_9        TEXT,
+    geom        geometry(Point, 4326) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS onibus_ponto_geom ON onibus_ponto USING gist (geom);
+
+CREATE TABLE IF NOT EXISTS onibus_h3 (
+    h3_9        TEXT PRIMARY KEY,
+    pontos      INT,
+    linhas      INT,
+    partidas    INT
+);

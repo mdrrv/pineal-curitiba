@@ -201,11 +201,349 @@ def test_funcoes_m1(conn):
         )
 
 
+def escrever(caminho, cabecalho, linhas, enc="cp1252"):
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    with open(caminho, "w", encoding=enc, newline="") as f:
+        f.write(";".join(cabecalho) + "\r\n")
+        for li in linhas:
+            f.write(";".join(li) + "\r\n")
+    return caminho
+
+
+CAB_LIC = [
+    "Órgão",
+    "Número do Processo",
+    "Modalidade",
+    "Item",
+    "Quantidade",
+    "Unidade de Medida",
+    "Contratato/Fornecedor",
+    "CNPJ/CPF",
+    "Número do Contrato",
+    "Inicio da Vigência do Contrato",
+    "Fim da Vigência do Contrato",
+    "Valor Unitário",
+    "Valor Total/Global",
+]
+
+
+def arquivos_m1(bruto):
+    escrever(
+        bruto / "pmc_licitacoes" / "2026-10-01_Licitacoes_Contratacoes_Itens_Processo_-_Base_de_Dados.csv",
+        CAB_LIC,
+        [
+            [
+                "SMS",
+                "P1",
+                "Pregão",
+                "Luvas",
+                "1.000",
+                "CX",
+                "PADARIA PAO DOURADO LTDA",
+                "11.111.111/0001-01",
+                "C1",
+                "01/01/2025",
+                "31/12/2030",
+                "1,50",
+                "1.500,00",
+            ],
+            [
+                "SMS",
+                "P1",
+                "Pregão",
+                "Máscaras",
+                "10",
+                "CX",
+                "PADARIA PAO DOURADO LTDA",
+                "11.111.111/0001-01",
+                "C1",
+                "01/01/2025",
+                "31/12/2030",
+                "10,00",
+                "100,00",
+            ],
+            [
+                "SME",
+                "P2",
+                "Dispensa",
+                "Palestra",
+                "1",
+                "UN",
+                "JOSE DA SILVA",
+                "123.456.789-01",
+                "C2",
+                "01/01/2020",
+                "31/12/2020",
+                "500,00",
+                "500,00",
+            ],
+            [
+                "SMOP",
+                "P3",
+                "Concorrência",
+                "Obra",
+                "1",
+                "UN",
+                "CONSTRUTORA DE FORA SA",
+                "99.999.999/0001-99",
+                "C3",
+                "01/01/2019",
+                "31/12/2019",
+                "9.000,00",
+                "9.000,00",
+            ],
+        ],
+    )
+    escrever(
+        bruto / "pmc_licitacoes_covid" / "2026-10-01_Licitacoes_Contratacoes_Covid_Itens_Processo_-_Base_de_Dados.csv",
+        CAB_LIC,
+        [
+            [
+                "SMS",
+                "PC1",
+                "Dispensa",
+                "Álcool",
+                "5",
+                "L",
+                "PADARIA PAO DOURADO LTDA",
+                "11111111000101",
+                "CC1",
+                "01/04/2020",
+                "31/12/2020",
+                "4,00",
+                "20,00",
+            ]
+        ],
+    )
+    escrever(
+        bruto / "pmc_siac156" / "2026-10-05_156_-_Base_de_Dados.csv",
+        [
+            "Tipo",
+            "Orgao",
+            "DataCriacao",
+            "Assunto",
+            "Subdivisao",
+            "Situacao",
+            "Logradouro",
+            "Bairro",
+            "Regional",
+            "DataResposta",
+            "Origem",
+            "Column1",
+        ],
+        [
+            [
+                "SOLICITACAO",
+                "SMMA",
+                "01/09/2026 10:00:00",
+                "PODA DE ARVORE",
+                "X",
+                "RESPONDIDA",
+                "R A",
+                "Centro",
+                "MATRIZ",
+                "05/09/2026 10:00:00",
+                "TELEFONE",
+                "",
+            ],
+            [
+                "SOLICITACAO",
+                "SMMA",
+                "10/09/2026 10:00:00",
+                "PODA DE ARVORE",
+                "X",
+                "ABERTA",
+                "R B",
+                "CENTRO",
+                "MATRIZ",
+                "",
+                "APP",
+                "",
+            ],
+            [
+                "RECLAMACAO",
+                "SMOP",
+                "02/08/2026 08:00:00",
+                "BURACO",
+                "Y",
+                "RESPONDIDA",
+                "R C",
+                "BATEL",
+                "MATRIZ",
+                "12/08/2026 08:00:00",
+                "APP",
+                "",
+            ],
+        ],
+    )
+    escrever(
+        bruto / "pmc_sigmu" / "2026-10-06_Sigmu_-_SERVICO_SOLICITADO_-_Base_de_Dados.csv",
+        [
+            "SSO_IDF",
+            "SGR_IDF",
+            "SSO_DATA_SOLICITACAO",
+            "SET_IDF",
+            "SSO_OBSERVACAO",
+            "SSO_NOME_BAIRRO",
+            "SSO_DATA_REALIZACAO",
+        ],
+        [
+            ["1", "1", "2026-09-01 08:00:00", "10", "texto livre do cidadão", "CENTRO", "2026-09-03 08:00:00"],
+            ["2", "1", "2026-09-15 08:00:00", "10", "", "CENTRO", ""],
+            ["3", "1", "2026-08-01 08:00:00", "20", "", "BATEL", "2026-08-02 08:00:00"],
+        ],
+    )
+    escrever(
+        bruto / "pmc_sigmu" / "2026-10-06_Sigmu_-_SERVICO_TAB_-_Base_de_Dados.csv",
+        ["SET_IDF", "SET_DESCRICAO", "SGR_IDF"],
+        [["10", "TAPA-BURACO", "1"], ["20", "LIMPEZA DE BOCA DE LOBO", "1"]],
+    )
+    escrever(
+        bruto / "pmc_unidades" / "2026-09-30_Unidades12_Atendimento_Ativas_Curitiba_-_Base_de_Dados.csv",
+        [
+            "CD_EQUI",
+            "NM_EQUI",
+            "DS_TEMA",
+            "DS_TP_EQUIPAMENTO",
+            "DS_SUBTIPO_EQUIPAMENTO",
+            "DS_DEP_ADMINISTRATIVA",
+            "FUNCIONAMENTO_MANHA_EQUI",
+            "FUNCIONAMENTO_TARDE_EQUI",
+            "FUNCIONAMENTO_NOITE_EQUI",
+            "FUNCIONAMENTO_24HRS_EQUI",
+            "NM_RUA",
+            "NUMERO_EQUI",
+            "NM_BAIRRO",
+            "NM_REGIONAL",
+        ],
+        [
+            [
+                "1",
+                "UBS FAIVRE",
+                "SAÚDE",
+                "UNIDADE DE SAÚDE",
+                "UBS",
+                "MUNICIPAL",
+                "S",
+                "S",
+                "N",
+                "N",
+                "RUA DOUTOR FAIVRE",
+                "10",
+                "CENTRO",
+                "MATRIZ",
+            ],
+            [
+                "2",
+                "ESCOLA SEM ENDEREÇO",
+                "EDUCAÇÃO",
+                "ESCOLA",
+                "EF",
+                "MUNICIPAL",
+                "S",
+                "N",
+                "N",
+                "N",
+                "RUA INEXISTENTE",
+                "1",
+                "BAIRRO NENHUM",
+                "MATRIZ",
+            ],
+        ],
+    )
+    import zipfile
+
+    (bruto / "urbs_gtfs").mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(bruto / "urbs_gtfs" / "gtfs.zip", "w") as z:
+        z.writestr(
+            "stops.txt",
+            "stop_id,stop_name,stop_lat,stop_lon,location_type\n"
+            f"S1,Ponto 1,{LAT0},{LON0},0\nS2,Ponto 2,{LAT0},{LON0 + 0.00005},\nE1,Estação,{LAT0},{LON0},1\n",
+        )
+        z.writestr("trips.txt", "route_id,service_id,trip_id\nR1,U,T1\nR1,U,T2\nR2,U,T3\n")
+        z.writestr(
+            "stop_times.txt",
+            "trip_id,arrival_time,departure_time,stop_id,stop_sequence\n"
+            "T1,08:00:00,08:00:00,S1,1\nT2,09:00:00,09:00:00,S1,1\nT3,10:00:00,10:00:00,S1,1\nT3,10:05:00,10:05:00,S2,2\n",
+        )
+
+
+def test_licitacoes(conn, ambiente):
+    from etl.fontes import pmc_licitacoes
+
+    montar(conn)
+    arquivos_m1(ambiente / "bruto")
+    pmc_licitacoes.main([])
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT cnpj, contratos, itens, valor_total, contratos_vigentes, na_cidade FROM empresa_contratos_pmc ORDER BY 1"
+        )
+        import decimal
+
+        assert cur.fetchall() == [
+            ("11111111000101", 2, 3, decimal.Decimal("1620.00"), 1, True),
+            ("99999999000199", 1, 1, decimal.Decimal("9000.00"), 0, False),
+        ]
+        cur.execute("SELECT count(*) FROM contrato_pmc_item WHERE pessoa_fisica AND cnpj IS NULL")
+        assert cur.fetchone()[0] == 1
+        cur.execute(
+            "SELECT count(*) FROM contrato_pmc_item c WHERE c::text LIKE '%%JOSE DA SILVA%%' OR c::text LIKE '%%12345678901%%'"
+        )
+        assert cur.fetchone()[0] == 0
+
+
+def test_zeladoria(conn, ambiente):
+    from etl.fontes import pmc_zeladoria
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO bairro (codigo, nome, geom) VALUES ('1', 'Centro', ST_Multi(ST_MakeEnvelope(0, 0, 1, 1, 4326)))"
+        )
+    conn.commit()
+    arquivos_m1(ambiente / "bruto")
+    pmc_zeladoria.main([])
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT bairro, mes, assunto, solicitacoes, respondidas, dias_resposta_mediana FROM siac156_bairro_mes ORDER BY 2, 1"
+        )
+        import datetime
+
+        r = cur.fetchall()
+        assert r[0][:5] == ("BATEL", datetime.date(2026, 8, 1), "BURACO", 1, 1) and r[0][5] == 10
+        assert r[1][:5] == ("Centro", datetime.date(2026, 9, 1), "PODA DE ARVORE", 2, 1) and r[1][5] == 4
+        cur.execute("SELECT bairro, servico, solicitacoes, realizadas FROM sigmu_bairro_mes ORDER BY 1")
+        assert cur.fetchall() == [("BATEL", "LIMPEZA DE BOCA DE LOBO", 1, 1), ("Centro", "TAPA-BURACO", 2, 1)]
+        cur.execute(
+            "SELECT count(*) FROM information_schema.columns WHERE table_schema = current_schema() AND column_name ILIKE '%%observacao%%'"
+        )
+        assert cur.fetchone()[0] == 0
+
+
+def test_unidades_e_transporte(conn, ambiente):
+    from etl.fontes import pmc_unidades, urbs_gtfs
+
+    montar(conn)
+    arquivos_m1(ambiente / "bruto")
+    pmc_unidades.main([])
+    urbs_gtfs.main([])
+    with conn.cursor() as cur:
+        cur.execute("SELECT codigo, turnos, geo_precisao, h3_9 IS NOT NULL FROM unidade_atendimento ORDER BY 1")
+        assert cur.fetchall() == [("1", "manha,tarde", "endereco_sem_cep", True), ("2", "manha", "nao_localizado", False)]
+        cur.execute("SELECT stop_id, linhas, partidas FROM onibus_ponto ORDER BY 1")
+        assert cur.fetchall() == [("S1", 2, 3), ("S2", 1, 1)]
+        cur.execute("SELECT sum(pontos), sum(partidas) FROM onibus_h3")
+        assert cur.fetchone() == (2, 4)
+
+
 def test_m1_orquestrador(conn, ambiente):
     from etl import m1
 
     montar(conn)
+    arquivos_m1(ambiente / "bruto")
     (ambiente / "bruto" / "pmc_alvaras").mkdir(parents=True)
     csv_alvaras(ambiente / "bruto" / "pmc_alvaras")
     m1.main([])
     assert db.contar(conn, "SELECT count(*) FROM alvara") == 6
+    with conn.cursor() as cur:
+        cur.execute("SELECT fonte, status FROM execucao WHERE tipo = 'etapa' ORDER BY id")
+        assert cur.fetchall() == [(e, "ok") for e in ["alvaras", "licitacoes", "zeladoria", "unidades", "transporte"]]
