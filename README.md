@@ -50,7 +50,7 @@ Funil de inteligência territorial B2B para Curitiba. Cruza a base de empresas d
 | Fase | Conteúdo | Situação |
 |---|---|---|
 | **M0** Fundação territorial | Setores IBGE, camadas IPPUC, CNEFE, recorte de CNPJs, geocodificação em 10 níveis com erro medido em metros, chave territorial | **Pronto e testado com dados sintéticos.** Falta a primeira rodada com dados reais |
-| **M2** Enriquecimento e indicadores | Perfil do ponto, domiciliação, histórico do ponto, redes, uso x zoneamento, saturação (QL), sobrevivência por coorte, densidade H3, movimentos mensais, raio-x, cruzamentos PNCP/TCE-PR/PGFN/sanções, edificações do Overture, exportação GeoParquet, demanda do Censo 2022 por setor (moradores por hexágono e no raio, espaço livre por bairro), isócronas a pé e de ônibus com raio-x da área | **Pronto e testado com dados sintéticos.** Códigos das variáveis do Censo a conferir com o dicionário do IBGE |
+| **M2** Enriquecimento e indicadores | Perfil do ponto, domiciliação, histórico do ponto, redes, uso x zoneamento, saturação (QL), sobrevivência por coorte, densidade H3, movimentos mensais, raio-x, cruzamentos PNCP/TCE-PR/PGFN/sanções, edificações do Overture, exportação GeoParquet, demanda do Censo 2022 por setor (moradores por hexágono e no raio, espaço livre por bairro), isócronas a pé e de ônibus com raio-x da área, risco de fechamento validado em anos passados e score de lead | **Pronto e testado com dados sintéticos.** Códigos das variáveis do Censo a conferir com o dicionário do IBGE |
 | **M1** Prefeitura e IPPUC | Alvarás (cruzamento CNPJ × alvará), licitações, 156, SIGMU, unidades de atendimento, transporte (GTFS) | **Pronto e testado com arquivos sintéticos no layout real.** Painel de Obras e autuações da Setran sem fonte em arquivo (#22) |
 | M1-seg Segurança | SiGesGuarda (Guarda Municipal) e índice de risco por bairro; CAPE/SESP-PR, Bombeiros e Defesa Civil | **SiGesGuarda e índice prontos e testados.** CAPE, Bombeiros e Defesa Civil dependem da LAI (#14) e entram na mesma tabela |
 | M1b Listas com CNPJ | MDIC, BNDES, IBAMA, IAT, CADASTUR, ANATEL, MAPA, e-MEC, CNES, ANP | **Leitor pronto e testado com arquivos sintéticos.** Layout de cada órgão a conferir na primeira carga real (arquivos baixados à mão em `dados/bruto/<lista>/`) |
@@ -364,6 +364,7 @@ python -m etl.m2
 | `edificacoes` | `python -m etl.fontes.overture_edificacoes` | Edificações do Overture por hexágono H3 (área construída estimada). Precisa de internet; `--arquivo` aceita GeoParquet já baixado |
 | `enriquecer` | `python -m etl.enriquecer` | Perfil do ponto, domiciliação, rede, histórico do ponto, uso x zoneamento; grava `relatorios/enriquecimento.md` |
 | `indicadores` | `python -m etl.indicadores` | Saturação, sobrevivência, densidade, movimentos e a função `raio_x`; grava `relatorios/indicadores.md` |
+| `score` | `python -m etl.score` | Risco de fechamento em 12 meses (com validação nos 3 anos anteriores) e score de lead por CNPJ ativo; grava `relatorios/score.md` |
 | `exportar` | `python -m etl.exportar` | GeoParquet em `dados/exportar/` para QGIS, Kepler.gl ou Lonboard |
 
 ```bash
@@ -411,6 +412,35 @@ SELECT * FROM moradores_raio(-25.4284, -49.2733, 500);
 -- onde faltam farmácias (classe 47717)
 SELECT bairro, ativos, esperado, lacuna FROM m2_espaco_livre WHERE classe = '47717' ORDER BY lacuna DESC LIMIT 10;
 ```
+
+### Risco de fechamento e score de lead
+
+**Risco (`empresa_risco.risco_12m`).** Probabilidade de a empresa ativa fechar (baixa, inaptidão ou suspensão) nos próximos 12 meses. É a taxa anual de fechamento observada nos 5 anos completos antes da data da base, na célula divisão CNAE x faixa de idade (0-1, 1-2, 2-3, 3-5, 5-10, 10+ anos) x MEI:
+
+- célula pequena é puxada para a média da faixa de idade (encolhimento bayesiano, 50 exposições emprestadas);
+- o resultado é multiplicado pelo fator do bairro, fechamentos observados / esperados (encolhido para 1, 20 fechamentos emprestados).
+
+**Validação antes de usar.** Para cada um dos 3 anos antes da base, o modelo é ajustado com os 5 anos anteriores e prevê o ano seguinte. `modelo_validacao` traz a taxa prevista x observada e a AUC (0,5 = sorte, 1 = perfeito); `modelo_calibracao`, a taxa prevista x observada por decil de risco. Se a AUC ficar perto de 0,5 ou os decis não subirem, o risco não serve para aquela base.
+
+Limites: MEI é a opção atual (a Receita não dá o histórico); empresas reativadas contam como ativas o tempo todo.
+
+**Score (`empresa_lead.score`, 0 a 100).** Soma de pontos por critério, com os pesos em `lead_peso` (editável: a carga não sobrescreve um peso alterado). `criterios` lista o que somou, do maior peso para o menor.
+
+| Critério | Pontos | Fonte |
+|---|---:|---|
+| `porte_demais` / `porte_epp` | 15 / 10 | porte da Receita |
+| `nao_mei` | 5 | opção MEI |
+| `idade_2a` | 10 | ativa há 2 anos ou mais |
+| `ponto_comercial` | 10 | `empresa_perfil` (comercial ou misto, fora de domiciliação) |
+| `rede` | 10 | mais de um CNPJ ativo da raiz em Curitiba |
+| `fornecedor_publico` | 15 | PNCP, TCE-PR (`empresa_sinais`) ou prefeitura (`empresa_contratos_pmc`) |
+| `lista_exportadora` / `lista_credito` / `lista_outras` | 10 / 10 / 5 | `empresa_lista` (MDIC, BNDES, demais) |
+| `alvara_ok` | 5 | alvará casado e não vencido |
+| `hexagono_crescendo` | 5 | mais aberturas que fechamentos no hexágono em 12 meses |
+| `risco_baixo` | 10 | risco abaixo da mediana da divisão |
+| `divida_pgfn` / `sancao` | -10 / -30 | `empresa_sinais` |
+
+Passo que não rodou (alvarás, cruzamentos) só deixa o critério sem pontos. O score não tem validação contra venda real: os pesos são o ponto de partida para ajustar com o resultado comercial.
 
 ### Área de influência: isócronas a pé e de ônibus
 
@@ -464,6 +494,7 @@ No schema do Pineal (`cwb` por padrão):
 | `lista_registro`, `empresa_lista` | Listas com CNPJ (M1b) | |
 | `censo_*`, `setor_demografia`, `setor_h3_domicilio`, `demanda_h3` | Censo 2022 por setor e demanda | |
 | `via_no`, `via_aresta`, `isocrona` | Rede de caminhada e isócronas | |
+| `empresa_risco`, `modelo_validacao`, `modelo_calibracao`, `empresa_lead`, `lead_peso` | Risco de fechamento e score de lead | `cnpj` |
 | `cnae`, `natureza_juridica`, `porte`, `situacao_cadastral`, `zona_regra` | Tabelas de apoio | |
 | `execucao` | Cada carga e cada etapa: `run_id`, `tipo`, `status`, `duracao_s`, `erro`, origem, arquivo, sha256, linhas | `id` |
 
@@ -599,7 +630,8 @@ pineal-curitiba/
 │   ├── 40_m2.sql              saturação, sobrevivência, densidade, movimentos, raio_x
 │   ├── 50_alvaras.sql         cruzamento alvará x CNPJ e sinais
 │   ├── 60_seguranca.sql       agregados de segurança e índice de risco por bairro
-│   └── 70_demanda.sql         demografia por setor, demanda por hexágono, espaço livre
+│   ├── 70_demanda.sql         demografia por setor, demanda por hexágono, espaço livre
+│   └── 80_score.sql           score de lead (pesos em lead_peso)
 ├── etl/
 │   ├── config.py, db.py       .env, schema, run_id, conexão, registro de etapas e cargas
 │   ├── baixar.py, geo.py      download com cache; leitura de camadas vetoriais
@@ -610,6 +642,7 @@ pineal-curitiba/
 │   ├── geocodificar.py, avaliar_geocodificacao.py, territorio.py
 │   ├── enriquecer.py, indicadores.py, exportar.py
 │   ├── isocronas.py           isócronas a pé e de ônibus
+│   ├── score.py               risco de fechamento, validação e score de lead
 │   ├── portal.py, leitura.py  cliente do portal da prefeitura; leitura de CSV grande
 │   └── m0.py, m1.py, m2.py    orquestradores
 ├── tests/
