@@ -10,7 +10,7 @@ Regras que valem para todos:
 - Prazo de 20 dias, prorrogável por mais 10 (art. 11). Registre protocolo e data em `catalogo.yaml` (campo `obs`).
 - Nenhum pedido inclui dado pessoal. Onde a base tem pessoa, o pedido já vem agregado ou sem identificação.
 
-Ordem sugerida, pelo valor para o produto: 1, 2, 7, 8, 4, 3, 6, 5, 9, 10, 11.
+Ordem sugerida, pelo valor para o produto: 1, 2, 7, 8, 4, 13, 3, 6, 5, 14, 12, 9, 11 (o 10 não precisa mais).
 
 ---
 
@@ -69,3 +69,15 @@ Enviar só se o download direto no site do IPPUC não estiver disponível.
 > Solicito, em formato aberto (CSV ou planilha), a relação das licenças ambientais e autorizações emitidas pelo Instituto Água e Terra para empreendimentos localizados no município de Curitiba nos últimos cinco anos e vigentes, com: CNPJ do empreendedor (pessoa jurídica), tipo de licença, atividade licenciada, endereço do empreendimento, data de emissão e data de validade. Não solicito dados de pessoas físicas.
 
 Enviar se não houver arquivo aberto no site do IAT. A resposta vai para `dados/bruto/iat_licencas/` e é lida por `etl/fontes/listas_cnpj.py` (licença perto do vencimento é lead para consultoria ambiental).
+
+## 13. Obras públicas do Município em formato aberto (SMOP / SMF)
+
+> Solicito, em formato aberto (CSV), a base que alimenta o Painel de Obras do Município de Curitiba, com: identificador da obra, descrição, secretaria responsável, endereço ou coordenada, bairro, CNPJ e razão social da empresa contratada, número do contrato, valor contratado, valores medidos e pagos por medição, datas de início, previsão de término e conclusão, e situação. Solicito também a informação sobre a periodicidade de atualização do painel.
+
+Enviar se o painel não tiver exportação nem endpoint aberto (conferir no navegador: aba de rede do painel). Entra somado a `empresa_contratos_pmc` (fornecedor público) e como camada de obras por bairro (#22).
+
+## 14. Autuações de trânsito por local (Setran)
+
+> Solicito, em formato aberto (CSV), as autuações de trânsito lavradas em Curitiba de 2019 em diante, agregadas por logradouro (ou trecho) e mês, com o tipo de infração (código e descrição do CTB) e a quantidade. Não solicito dados de veículos, condutores ou agentes.
+
+Enviar se a Setran só publicar painel ou PDF. Serve para fluxo e fiscalização por via (#22).
