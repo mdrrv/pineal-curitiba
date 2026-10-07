@@ -52,6 +52,7 @@ def criar_schema(conn) -> None:
     executar_sql(conn, "05_m1_schema.sql")
     executar_sql(conn, "06_censo_schema.sql")
     executar_sql(conn, "07_rede_schema.sql")
+    executar_sql(conn, "08_extras_schema.sql")
 
 
 def _inserir(conn, **campos) -> None:

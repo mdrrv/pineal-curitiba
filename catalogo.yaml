@@ -504,8 +504,27 @@ fontes:
   - {id: ipardes_bde, nome: "Base de Dados do Estado (BDEweb)", dono: IPARDES, fase: M2, status: planejado, chaves: [terr]}
   - {id: jucepar_empresas_pr, nome: "Empresas PR (aberturas e fechamentos)", dono: JUCEPAR, fase: M2, status: planejado, chaves: [terr]}
   - {id: osm_overture, nome: "OSM e Overture (vias e POIs)", dono: "OSM / Overture", fase: M2, status: planejado, chaves: [geo]}
-  - {id: inpi_marcas, nome: Marcas por CNPJ titular, dono: INPI, fase: M2, status: planejado, chaves: [cnpj], obs: "acesso aberto em lote a confirmar (RPI semanal em XML)"}
-  - {id: clima, nome: Chuva e temperatura diárias, dono: "Simepar / INMET", fase: M2, status: planejado, chaves: [terr], obs: sazonalidade do varejo}
+  - id: inpi_marcas
+    nome: Marcas (RPI, seção de marcas)
+    dono: INPI
+    fase: M2
+    status: a_conferir
+    chaves: [nome]
+    formato: xml (zip semanal RM<numero>)
+    url_modelo: https://revistas.inpi.gov.br/txt/RM{numero}.zip
+    script: etl/fontes/inpi_marcas.py
+    obs: "a RPI não traz CNPJ do titular: casamento pela razão social normalizada com UF PR, só quando aponta para uma raiz única do recorte; pessoa física fica de fora"
+
+  - id: inmet_clima
+    nome: Chuva e temperatura diárias (estações de Curitiba)
+    dono: INMET
+    fase: M2
+    status: a_conferir
+    chaves: [terr]
+    formato: csv horário por estação (zip anual)
+    url_modelo: https://portal.inmet.gov.br/uploads/dadoshistoricos/{ano}.zip
+    script: etl/fontes/inmet_clima.py
+    obs: "sazonalidade do varejo; Simepar tem rede mais densa mas sem dado aberto em lote (pedir se precisar)"
   - {id: ookla, nome: Velocidade de internet por tile, dono: Ookla, fase: M2, status: fora, chaves: [geo], obs: "licença CC BY-NC: proíbe uso comercial"}
 
   # ---------------------------------------------------------------- pedidos via LAI (ver docs/pedidos-lai.md)

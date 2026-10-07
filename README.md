@@ -413,6 +413,19 @@ SELECT * FROM moradores_raio(-25.4284, -49.2733, 500);
 SELECT bairro, ativos, esperado, lacuna FROM m2_espaco_livre WHERE classe = '47717' ORDER BY lacuna DESC LIMIT 10;
 ```
 
+### Marcas do INPI e clima
+
+```bash
+python -m etl.fontes.inpi_marcas --numeros 2850-2860   # RPI de marcas (semanal); ou RM*.zip em dados/bruto/inpi_marcas/
+python -m etl.fontes.inmet_clima --anos 2020-2025      # dados históricos do INMET; ou os zips em dados/bruto/inmet_clima/
+```
+
+| Tabela | Conteúdo | Observações |
+|---|---|---|
+| `inpi_marca` | Processo, CNPJ, depósito, marca, apresentação, natureza, classes Nice, último despacho e revista | A RPI não traz CNPJ: casa pela razão social normalizada do titular com UF PR, só quando o nome aponta para uma única raiz do recorte (vai para a matriz em Curitiba). Titular pessoa física e nome ambíguo ficam de fora. Cada processo guarda o despacho da revista mais recente |
+| `empresa_marca` | Por CNPJ: marcas, pedidos nos últimos 12 meses, concedidas, classes, último depósito | Pedido recente de marca é sinal de expansão ou lançamento |
+| `clima_dia` | Por estação de Curitiba e dia (horário de Curitiba): chuva, horas com chuva, temperatura média, mínima e máxima, horas medidas | Do arquivo horário em UTC; -9999 é falta de medição. Para sazonalidade do varejo e para separar efeito de chuva em séries de movimento |
+
 ### Regras de zoneamento
 
 `zona_regra` vem de `apoio/zona_regra.csv`, versionado no repositório e preenchido a partir da Lei de Zoneamento (15.511/2019), dos anexos e dos decretos. O arquivo começa vazio: nenhuma regra entra sem a fonte.
@@ -516,6 +529,7 @@ No schema do Pineal (`cwb` por padrão):
 | `censo_*`, `setor_demografia`, `setor_h3_domicilio`, `demanda_h3` | Censo 2022 por setor e demanda | |
 | `via_no`, `via_aresta`, `isocrona` | Rede de caminhada e isócronas | |
 | `empresa_risco`, `modelo_validacao`, `modelo_calibracao`, `empresa_lead`, `lead_peso` | Risco de fechamento e score de lead | `cnpj` |
+| `inpi_marca`, `empresa_marca`, `clima_dia` | Marcas do INPI e clima | |
 | `cnae`, `natureza_juridica`, `porte`, `situacao_cadastral`, `zona_regra` | Tabelas de apoio | |
 | `execucao` | Cada carga e cada etapa: `run_id`, `tipo`, `status`, `duracao_s`, `erro`, origem, arquivo, sha256, linhas | `id` |
 
@@ -648,6 +662,7 @@ pineal-curitiba/
 │   ├── 05_m1_schema.sql       tabelas e funções do M1 (datas, CNAE e valores do portal)
 │   ├── 06_censo_schema.sql    tabelas do Censo por setor e moradores_raio
 │   ├── 07_rede_schema.sql     rede de caminhada, isócronas e moradores_area
+│   ├── 08_extras_schema.sql   marcas do INPI e clima diário
 │   ├── 20_territorio.sql      chave territorial com desempate
 │   ├── 30_enriquecimento.sql  perfil do ponto, domiciliação, rede, ponto comercial, zoneamento
 │   ├── 40_m2.sql              saturação, sobrevivência, densidade, movimentos, raio_x
@@ -661,7 +676,8 @@ pineal-curitiba/
 │   ├── fontes/                ibge_setores, ibge_cnefe, ippuc, cnpj_recorte, portal_inventario,
 │   │                          apoio, mindata_cruzamentos, overture_edificacoes, pmc_alvaras,
 │   │                          pmc_licitacoes, pmc_zeladoria, pmc_unidades, urbs_gtfs,
-│   │                          pmc_sigesguarda, listas_cnpj, ibge_censo_setor, osm_vias, zona_regra
+│   │                          pmc_sigesguarda, listas_cnpj, ibge_censo_setor, osm_vias, zona_regra,
+│   │                          inpi_marcas, inmet_clima
 │   ├── geocodificar.py, avaliar_geocodificacao.py, territorio.py
 │   ├── enriquecer.py, indicadores.py, exportar.py
 │   ├── isocronas.py           isócronas a pé e de ônibus
