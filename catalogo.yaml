@@ -472,7 +472,17 @@ fontes:
 
   # ---------------------------------------------------------------- M2: contexto
 
-  - {id: ibge_censo_setor, nome: "Censo 2022, agregados por setor", dono: IBGE, fase: M2, status: planejado, chaves: [terr]}
+  - id: ibge_censo_setor
+    nome: "Censo 2022, agregados por setor"
+    dono: IBGE
+    fase: M2
+    status: a_conferir
+    chaves: [terr]
+    formato: csv (zip nacional por tema)
+    periodicidade: decenal
+    url_diretorio: https://ftp.ibge.gov.br/Censos/Censo_Demografico_2022/Agregados_por_Setores_Censitarios/Agregados_por_Setor_csv/
+    script: etl/fontes/ibge_censo_setor.py
+    obs: "temas basico, demografia e renda_responsavel; códigos das variáveis em censo_variavel, a conferir com o dicionário"
   - {id: caged, nome: "Novo CAGED", dono: MTE, fase: M2, status: planejado, chaves: [terr]}
   - {id: rais, nome: "RAIS", dono: MTE, fase: M2, status: planejado, chaves: [terr]}
   - {id: inep_censo_escolar, nome: "Censo Escolar", dono: INEP, fase: M2, status: planejado, chaves: [geo]}

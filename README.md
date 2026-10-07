@@ -50,7 +50,7 @@ Funil de inteligência territorial B2B para Curitiba. Cruza a base de empresas d
 | Fase | Conteúdo | Situação |
 |---|---|---|
 | **M0** Fundação territorial | Setores IBGE, camadas IPPUC, CNEFE, recorte de CNPJs, geocodificação em 10 níveis com erro medido em metros, chave territorial | **Pronto e testado com dados sintéticos.** Falta a primeira rodada com dados reais |
-| **M2** Enriquecimento e indicadores | Perfil do ponto, domiciliação, histórico do ponto, redes, uso x zoneamento, saturação (QL), sobrevivência por coorte, densidade H3, movimentos mensais, raio-x, cruzamentos PNCP/TCE-PR/PGFN/sanções, edificações do Overture, exportação GeoParquet | **Pronto e testado com dados sintéticos** |
+| **M2** Enriquecimento e indicadores | Perfil do ponto, domiciliação, histórico do ponto, redes, uso x zoneamento, saturação (QL), sobrevivência por coorte, densidade H3, movimentos mensais, raio-x, cruzamentos PNCP/TCE-PR/PGFN/sanções, edificações do Overture, exportação GeoParquet, demanda do Censo 2022 por setor (moradores por hexágono e no raio, espaço livre por bairro) | **Pronto e testado com dados sintéticos.** Códigos das variáveis do Censo a conferir com o dicionário do IBGE |
 | **M1** Prefeitura e IPPUC | Alvarás (cruzamento CNPJ × alvará), licitações, 156, SIGMU, unidades de atendimento, transporte (GTFS) | **Pronto e testado com arquivos sintéticos no layout real.** Painel de Obras e autuações da Setran sem fonte em arquivo (#22) |
 | M1-seg Segurança | SiGesGuarda (Guarda Municipal) e índice de risco por bairro; CAPE/SESP-PR, Bombeiros e Defesa Civil | **SiGesGuarda e índice prontos e testados.** CAPE, Bombeiros e Defesa Civil dependem da LAI (#14) e entram na mesma tabela |
 | M1b Listas com CNPJ | MDIC, BNDES, IBAMA, IAT, CADASTUR, ANATEL, MAPA, e-MEC, CNES, ANP | **Leitor pronto e testado com arquivos sintéticos.** Layout de cada órgão a conferir na primeira carga real (arquivos baixados à mão em `dados/bruto/<lista>/`) |
@@ -359,6 +359,7 @@ python -m etl.m2
 | Etapa | Comando isolado | O que faz |
 |---|---|---|
 | `apoio` | `python -m etl.fontes.apoio` | Hierarquia CNAE (API do IBGE; reserva em `dados_rfb.cnae`) e natureza jurídica |
+| `censo` | `python -m etl.fontes.ibge_censo_setor [--arquivo ...]` | Censo 2022 por setor (temas básico, demografia, renda do responsável), moradores distribuídos pelos domicílios do CNEFE e espaço livre por bairro; grava `relatorios/demanda.md`. Precisa do FTP do IBGE ou dos zips em `dados/bruto/ibge_censo_setor/` |
 | `cruzamentos` | `python -m etl.fontes.mindata_cruzamentos` | PNCP, TCE-PR, PGFN e sanções federais por CNPJ, das tabelas da MINDATA; tabela ausente é pulada |
 | `edificacoes` | `python -m etl.fontes.overture_edificacoes` | Edificações do Overture por hexágono H3 (área construída estimada). Precisa de internet; `--arquivo` aceita GeoParquet já baixado |
 | `enriquecer` | `python -m etl.enriquecer` | Perfil do ponto, domiciliação, rede, histórico do ponto, uso x zoneamento; grava `relatorios/enriquecimento.md` |
@@ -383,13 +384,32 @@ python -m etl.m2 --so enriquecer --so indicadores --so exportar
 | `m2_sobrevivencia` | Quantas empresas abertas em cada ano seguem vivas 1, 3 e 5 anos depois, por divisão CNAE |
 | `m2_densidade_h3` | Quantas empresas ativas há em cada hexágono de cerca de 0,1 km², por divisão |
 | `m2_movimento` | Aberturas, fechamentos, reativações, saídas do recorte e mudanças de endereço ou CNAE entre competências |
-| `raio_x(lat, lon, raio_m)` | O que há num raio do ponto, por divisão, e quanto isso está acima ou abaixo da densidade média da cidade (índice 100 = média) |
+| `raio_x(lat, lon, raio_m)` | O que há num raio do ponto, por divisão, e quanto isso está acima ou abaixo da densidade média da cidade (índice 100 = média). Com o Censo: moradores no raio, empresas por mil moradores no raio e na cidade, e `indice_moradores` (< 100 = menos oferta por morador que a média) |
+| `moradores_raio(lat, lon, raio_m)` | Moradores, domicílios e renda média do responsável num raio |
+| `setor_demografia` | Por setor: pessoas, domicílios, faixas de idade, renda média do responsável, densidade, dependência e envelhecimento, bairro |
+| `demanda_h3` | Moradores, domicílios, crianças, idosos e renda por hexágono |
+| `m2_espaco_livre` | Por bairro e classe CNAE de comércio e serviço ao morador: empresas ativas, esperadas pela média da cidade por morador, lacuna e índice. Onde falta farmácia, academia, pet shop |
 | `empresa_sinais` | Contratos públicos (PNCP, TCE-PR), dívida ativa da União e sanções federais de cada CNPJ |
 | `edificacao_h3` | Área construída por hexágono, proxy de densidade urbana |
 
 ```sql
 -- o que há num raio de 250 m da Praça Tiradentes
 SELECT * FROM raio_x(-25.4284, -49.2733, 250);
+```
+
+### Demanda: Censo 2022 por setor
+
+Os agregados por setor do IBGE são nacionais, um zip por tema. Ficam só os setores de Curitiba. Toda coluna `V####` vai para `censo_setor_var` (formato longo); `censo_variavel` diz qual variável vira qual indicador. Os códigos de lá seguem a documentação do IBGE, mas **confira com o dicionário de cada tema** na primeira carga: o relatório lista as variáveis mapeadas que não vieram, e a tabela é editável.
+
+A população de cada setor é distribuída pelos endereços de domicílio do CNEFE (espécies 1 e 2): dá moradores por hexágono e no raio sem supor população uniforme no setor. Setor sem domicílio no CNEFE fica inteiro no ponto interno (no hexágono) ou pela fração da área (no raio).
+
+`m2_espaco_livre` compara, por bairro, as empresas ativas de cada classe de comércio e serviço ao morador (divisões 47, 56, 75, 85, 86, 93, 95, 96) com as esperadas se o bairro tivesse a mesma oferta por morador da cidade. Mede só moradores: o Centro, com fluxo de quem trabalha e passa, aparece saturado e é normal.
+
+```sql
+-- quantos moradores e qual renda num raio de 500 m
+SELECT * FROM moradores_raio(-25.4284, -49.2733, 500);
+-- onde faltam farmácias (classe 47717)
+SELECT bairro, ativos, esperado, lacuna FROM m2_espaco_livre WHERE classe = '47717' ORDER BY lacuna DESC LIMIT 10;
 ```
 
 `m2_movimento` só tem eventos a partir da segunda foto mensal. Rode `python -m etl.fontes.cnpj_recorte` a cada atualização da base da Receita (ou `python -m etl.m0 --so cnpj`) para acumular competências.
@@ -414,6 +434,7 @@ No schema do Pineal (`cwb` por padrão):
 | `alvara*`, `contrato_pmc_item`, `siac156_*`, `sigmu_*`, `unidade_atendimento`, `onibus_*` | Bases da prefeitura (ver [Rodando o M1](#rodando-o-m1)) | |
 | `seguranca_*`, `risco_bairro*`, `natureza_categoria` | Segurança e índice de risco | |
 | `lista_registro`, `empresa_lista` | Listas com CNPJ (M1b) | |
+| `censo_*`, `setor_demografia`, `setor_h3_domicilio`, `demanda_h3` | Censo 2022 por setor e demanda | |
 | `cnae`, `natureza_juridica`, `porte`, `situacao_cadastral`, `zona_regra` | Tabelas de apoio | |
 | `execucao` | Cada carga e cada etapa: `run_id`, `tipo`, `status`, `duracao_s`, `erro`, origem, arquivo, sha256, linhas | `id` |
 
@@ -542,18 +563,20 @@ pineal-curitiba/
 │   ├── 02_apoio.sql           porte, situação, CNAE, natureza jurídica, regras de zoneamento
 │   ├── 10_geocodificar.sql    núcleo da geocodificação em níveis
 │   ├── 05_m1_schema.sql       tabelas e funções do M1 (datas, CNAE e valores do portal)
+│   ├── 06_censo_schema.sql    tabelas do Censo por setor e moradores_raio
 │   ├── 20_territorio.sql      chave territorial com desempate
 │   ├── 30_enriquecimento.sql  perfil do ponto, domiciliação, rede, ponto comercial, zoneamento
 │   ├── 40_m2.sql              saturação, sobrevivência, densidade, movimentos, raio_x
 │   ├── 50_alvaras.sql         cruzamento alvará x CNPJ e sinais
-│   └── 60_seguranca.sql       agregados de segurança e índice de risco por bairro
+│   ├── 60_seguranca.sql       agregados de segurança e índice de risco por bairro
+│   └── 70_demanda.sql         demografia por setor, demanda por hexágono, espaço livre
 ├── etl/
 │   ├── config.py, db.py       .env, schema, run_id, conexão, registro de etapas e cargas
 │   ├── baixar.py, geo.py      download com cache; leitura de camadas vetoriais
 │   ├── fontes/                ibge_setores, ibge_cnefe, ippuc, cnpj_recorte, portal_inventario,
 │   │                          apoio, mindata_cruzamentos, overture_edificacoes, pmc_alvaras,
 │   │                          pmc_licitacoes, pmc_zeladoria, pmc_unidades, urbs_gtfs,
-│   │                          pmc_sigesguarda, listas_cnpj
+│   │                          pmc_sigesguarda, listas_cnpj, ibge_censo_setor
 │   ├── geocodificar.py, avaliar_geocodificacao.py, territorio.py
 │   ├── enriquecer.py, indicadores.py, exportar.py
 │   ├── portal.py, leitura.py  cliente do portal da prefeitura; leitura de CSV grande

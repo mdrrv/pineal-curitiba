@@ -155,7 +155,7 @@ def test_m0_completo(conn, ambiente, monkeypatch):
     # M2 em cima do M0 (sem rede: a API de CNAE falha e as tabelas da MINDATA não existem no banco falso)
     conn.commit()
     monkeypatch.setattr(apoio.requests, "get", lambda *a, **k: (_ for _ in ()).throw(apoio.requests.ConnectionError()))
-    m2.main(["--pular", "edificacoes"])
+    m2.main(["--pular", "edificacoes", "--pular", "censo"])
     with conn.cursor() as cur:
         cur.execute("SELECT count(*) FROM empresa_perfil")
         assert cur.fetchone()[0] == 4

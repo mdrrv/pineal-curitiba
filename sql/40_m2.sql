@@ -104,9 +104,13 @@ CREATE INDEX ON m2_movimento (competencia, evento);
 -- O que há num raio do ponto, por divisão CNAE, comparado com a cidade.
 -- Só entram empresas com localização de quadra (estabelecimento, endereço ou número próximo).
 -- indice = densidade no raio / densidade na cidade x 100 (100 = igual à média da cidade).
-CREATE OR REPLACE FUNCTION raio_x(lat DOUBLE PRECISION, lon DOUBLE PRECISION, raio_m DOUBLE PRECISION DEFAULT 250)
+-- Com o Censo carregado: moradores no raio (moradores_raio) e empresas por mil moradores no raio e na
+-- cidade; indice_moradores < 100 = menos oferta por morador que a média da cidade (espaço livre).
+DROP FUNCTION IF EXISTS raio_x(DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION);
+CREATE FUNCTION raio_x(lat DOUBLE PRECISION, lon DOUBLE PRECISION, raio_m DOUBLE PRECISION DEFAULT 250)
 RETURNS TABLE (divisao TEXT, divisao_descricao TEXT, ativos_raio BIGINT, por_km2_raio NUMERIC,
-               por_km2_cidade NUMERIC, indice NUMERIC)
+               por_km2_cidade NUMERIC, indice NUMERIC, moradores_raio NUMERIC, por_mil_moradores_raio NUMERIC,
+               por_mil_moradores_cidade NUMERIC, indice_moradores NUMERIC)
 LANGUAGE sql STABLE SET search_path FROM CURRENT AS $$
     WITH ponto AS (
         SELECT ST_SetSRID(ST_MakePoint(lon, lat), 4326)::geography AS g
@@ -125,13 +129,20 @@ LANGUAGE sql STABLE SET search_path FROM CURRENT AS $$
         GROUP BY 1
     ), cidade AS (
         SELECT divisao, count(*) AS n FROM precisa GROUP BY 1
+    ), mor AS (
+        SELECT NULLIF((SELECT moradores FROM moradores_raio(lat, lon, raio_m)), 0) AS raio,
+               NULLIF((SELECT sum(pessoas) FROM setor_demografia), 0) AS cidade
     )
     SELECT r.divisao,
            (SELECT max(c2.divisao_descricao) FROM cnae c2 WHERE c2.divisao = r.divisao),
            r.n,
            round((r.n / (pi() * raio_m ^ 2 / 1e6))::NUMERIC, 1),
            round((c.n / NULLIF(a.km2, 0))::NUMERIC, 1),
-           round((100 * (r.n / (pi() * raio_m ^ 2 / 1e6)) / NULLIF(c.n / NULLIF(a.km2, 0), 0))::NUMERIC, 0)
-    FROM raio r JOIN cidade c USING (divisao) CROSS JOIN area_cidade a
+           round((100 * (r.n / (pi() * raio_m ^ 2 / 1e6)) / NULLIF(c.n / NULLIF(a.km2, 0), 0))::NUMERIC, 0),
+           m.raio,
+           round(1000 * r.n / m.raio, 2),
+           round(1000 * c.n / m.cidade, 2),
+           round(100 * (r.n / m.raio) / (c.n / m.cidade), 0)
+    FROM raio r JOIN cidade c USING (divisao) CROSS JOIN area_cidade a CROSS JOIN mor m
     ORDER BY r.n DESC, r.divisao
 $$;
