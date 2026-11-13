@@ -192,6 +192,12 @@ Layouts variam entre anos (como nas listas M1b): o leitor exige só as colunas o
 se confere na primeira carga. O código TSE do município (`CD_MUNICIPIO`, que não é o código IBGE nem o da
 Receita) fica em `PINEAL_COD_TSE`, com filtro de reserva por nome + UF.
 
+**Pautas do ME2** (dor territorial × voto): a taxonomia completa, com fontes e indicadores por bairro, está no
+[PRD](prd-eleitoral-2028.md). Reaproveita o que já está ativo (156/SIGMU, SiGesGuarda, E-Saúde, INMET, GTFS,
+Fala Curitiba como gabarito de prioridade declarada) e acrescenta: `pmc_saude_fila` e `pmc_cohab_fila`
+(conjuntos do portal que o recorte B2B tinha deixado de fora), acidentes do BPTran, fila de CMEI e atendimentos
+agregados da FAS (pedidos LAI 15–18 em [`pedidos-lai.md`](pedidos-lai.md)).
+
 ## Fora de propósito
 
 - Google Places e popular times: pagos e com termos que proíbem o uso.

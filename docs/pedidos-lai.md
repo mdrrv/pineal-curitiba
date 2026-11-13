@@ -81,3 +81,34 @@ Enviar se o painel não tiver exportação nem endpoint aberto (conferir no nave
 > Solicito, em formato aberto (CSV), as autuações de trânsito lavradas em Curitiba de 2019 em diante, agregadas por logradouro (ou trecho) e mês, com o tipo de infração (código e descrição do CTB) e a quantidade. Não solicito dados de veículos, condutores ou agentes.
 
 Enviar se a Setran só publicar painel ou PDF. Serve para fluxo e fiscalização por via (#22).
+
+---
+
+## Pautas do módulo eleitoral (ME2)
+
+Os pedidos 15 a 18 alimentam a taxonomia de pautas do ME2 ([`prd-eleitoral-2028.md`](prd-eleitoral-2028.md)).
+Mesmas regras: formato aberto, sem justificativa, **nenhum dado pessoal** — tudo agregado.
+
+## 15. Acidentes de trânsito por local (SESP-PR / BPTran)
+
+> Solicito, em formato aberto (CSV), os acidentes de trânsito registrados no município de Curitiba de 2018 até a data mais recente disponível, com: data, logradouro e cruzamento (ou latitude e longitude), bairro, tipo de acidente, gravidade (sem vítima, com vítima ferida, com vítima fatal) e quantidade de vítimas. Não solicito dados de condutores, vítimas ou veículos.
+
+Pauta P2 (trânsito). Complementa as autuações (pedido 14) e as contagens (pedido 5) da Setran.
+
+## 16. Fila de espera por vaga em CMEI (SME)
+
+> Solicito, em formato aberto (CSV), a quantidade de crianças em lista de espera por vaga em Centros Municipais de Educação Infantil (CMEIs) e centros conveniados de Curitiba, por unidade (ou, se não for possível, por bairro ou regional), por faixa etária e por mês, de 2023 até a data mais recente disponível. Não solicito identificação de crianças ou responsáveis.
+
+Pauta P7 (creches).
+
+## 17. População em situação de rua: atendimentos agregados (FAS)
+
+> Solicito, em formato aberto (CSV), de 2022 até a data mais recente disponível: a) a quantidade de abordagens realizadas pelo Serviço Especializado em Abordagem Social, por regional e por mês; b) a quantidade de pessoas em situação de rua em acompanhamento pela rede socioassistencial e a quantidade de vagas e pernoites em unidades de acolhimento, por unidade e por mês; c) os resultados de contagens ou censos de população em situação de rua realizados pelo Município, por região da cidade. Não solicito nenhum dado que identifique pessoas.
+
+Pauta P3 (situação de rua). Contexto: a Comissão Especial da Câmara (2026) apontou que o Município não publica contagem própria; o CadÚnico registra o estoque administrativo, não a fotografia de rua.
+
+## 18. Fila de consultas e exames especializados (SMS / Saúde Já)
+
+> Solicito, em formato aberto (CSV), a quantidade de pessoas aguardando consulta médica especializada e exame na rede municipal de Curitiba, por especialidade ou tipo de exame, por unidade solicitante (ou regional) e por mês, com o tempo médio de espera, de 2023 até a data mais recente disponível. Não solicito nenhum dado de paciente.
+
+Pauta P5 (saúde). Enviar só se o conjunto "Saúde Já" do Portal de Dados Abertos não trouxer a fila (conferir antes: `pmc_saude_fila` no catálogo).

@@ -581,3 +581,33 @@ fontes:
      status: planejado, chaves: [terr], obs: "fase ME3, mediante chancela específica (PRD)"}
   - {id: cmc_vereadores, nome: "Vereadores, proposições e votações da Câmara Municipal", dono: CMC, fase: ME,
      status: planejado, chaves: [terr], obs: "fase ME1; levantar formato no portal da CMC"}
+
+  # pautas territoriais do ME2 (taxonomia no PRD, docs/prd-eleitoral-2028.md). Reincluídas do recorte B2B
+  # (o inventário de 07/10/2026 as deixou fora por não terem uso comercial) ou via LAI. Sempre agregadas.
+
+  - id: pmc_saude_fila
+    nome: Fila de espera do Saúde Já (consultas e exames por especialidade)
+    dono: SMS
+    fase: ME
+    status: a_conferir
+    chaves: [terr]
+    obs: >
+      ficou fora do recorte B2B; conferir se o conjunto "Saúde Já" do portal traz a fila por
+      especialidade/unidade, sem dado de paciente. Se não trouxer, pedido LAI 18 (docs/pedidos-lai.md)
+
+  - id: pmc_cohab_fila
+    nome: Fila de Pretendentes da Cohab
+    dono: Cohab-CT
+    fase: ME
+    status: a_conferir
+    chaves: [terr]
+    obs: >
+      conjunto do portal deixado fora do recorte B2B; demanda habitacional agregada por regional,
+      sem identificação de pretendentes
+
+  - {id: sesp_acidentes_transito, nome: "Acidentes de trânsito por logradouro (BPTran)", dono: "SESP-PR", fase: ME,
+     status: lai, chaves: [end, terr], obs: "pedido 15 em docs/pedidos-lai.md; pauta P2 (trânsito)"}
+  - {id: smed_fila_cmei, nome: "Fila de espera por vaga em CMEI", dono: SME, fase: ME,
+     status: lai, chaves: [terr], obs: "pedido 16; pauta P7 (creches)"}
+  - {id: fas_situacao_rua, nome: "Abordagens e acompanhamento de pessoas em situação de rua (agregado)", dono: FAS, fase: ME,
+     status: lai, chaves: [terr], obs: "pedido 17; pauta P3, só agregados por regional e mês, sem identificação"}

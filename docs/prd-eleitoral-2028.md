@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | Rascunho para chancela |
-| **Versão** | 0.1 (2026-11-13) |
+| **Versão** | 0.2 (2026-11-13) |
 | **Dono** | Vinícius Madureira |
 | **Repositório** | `mdrrv/pineal-curitiba` (módulo ME, ao lado do funil B2B) |
 
@@ -23,6 +23,7 @@ O PRD só vale depois de chancelado. Mudança de escopo depois da chancela vira 
 
 | Versão | Data | O que mudou |
 |---|---|---|
+| 0.2 | 2026-11-13 | Taxonomia de pautas do ME2 (dores latentes priorizadas pelo dono do produto: alagamentos, trânsito, situação de rua, mais as mensuráveis), fontes do portal reincluídas do recorte B2B e pedidos LAI 15–18 |
 | 0.1 | 2026-11-13 | Primeiro rascunho: escopo, fases ME0–ME3, limites legais, fontes e modelo de dados |
 
 ---
@@ -89,9 +90,33 @@ Pré-requisito: M0 rodado com dados reais (setores, bairros, CNEFE) — issue a 
 
 ### ME2 — Voto × pauta e score territorial
 
-- Cruzamento por bairro: índice de risco (segurança), zeladoria (156/SIGMU), saúde (E-Saúde), prioridades do Fala Curitiba × desempenho do incumbente e abstenção.
+- Cruzamento por bairro: cada pauta da taxonomia abaixo × desempenho do incumbente e abstenção.
 - **Score de prioridade territorial de campanha** no arcabouço do `80_score.sql` (tabela de pesos editável): volatilidade, abstenção, eleitores aptos, intensidade de pauta sem resposta.
 - Publicação (pacote M3): mapas por bairro/H3 em FlatGeobuf/PMTiles, sem nenhum dado além dos agregados.
+
+#### Taxonomia de pautas do ME2
+
+As três primeiras são as dores latentes priorizadas pelo dono do produto (2026-11); as demais completam o que
+as pesquisas de percepção apontam e o banco consegue medir. O **Fala Curitiba é o gabarito**: diz o que a
+população *declara* por regional; as fontes abaixo medem a dor *objetiva*; a distância entre as duas, e entre
+ambas e o voto no incumbente, é o indicador central do ME2. Achado de estrutura: o filtro "sem uso B2B" do
+inventário do portal descartou justamente fontes de dor social (fila do Saúde Já, Fila de Pretendentes da
+Cohab) — reincluídas aqui com fase ME.
+
+| # | Pauta | Dor medida | Fontes | Indicador por bairro | Situação |
+|---|---|---|---|---|---|
+| P1 | **Alagamentos e drenagem** | Chamado recorrente a cada temporal | 156/SIGMU (boca de lobo, galeria, alagamento), SiGesGuarda (`defesa_civil`), chuva INMET, hidrografia IPPUC; Defesa Civil (LAI 9) | Chamados por 1.000 domicílios em dia de chuva forte (sensibilidade à chuva) | Fontes já no repo; LAI 9 completa |
+| P2 | **Trânsito** | Congestionamento, acidentes, custo do transporte | GTFS/isócronas (oferta, já no repo); acidentes BPTran/SESP (LAI 15), autuações Setran (LAI 14), contagens (LAI 5), bilhetagem URBS (LAI 6) | Acidentes por km de via; tempo de acesso ao Centro por transporte público; demanda por linha | A dor (acidentes, fluxo) depende das LAIs; janela política: nova concessão do transporte (15 anos) em debate |
+| P3 | **População em situação de rua** | Concentração junto a áreas comerciais; ausência de contagem oficial é a própria pauta | 156 (abordagem social), SiGesGuarda; FAS agregada (LAI 17) | Chamados de abordagem social × perfil comercial do ponto (o Pineal já calcula) | Proxies já no repo; LAI 17 completa. Atenção redobrada ao limite: só agregados, nunca indivíduo |
+| P4 | Segurança | 1º problema nas pesquisas de percepção | SiGesGuarda + `risco_bairro_indice` (prontos); CAPE/SESP (LAI 7) | Índice de risco por bairro (existe) | Pronto; LAI 7 enriquece |
+| P5 | Saúde | Fila de especialista, pressão nas UPAs | E-Saúde (carregado); fila do Saúde Já (`pmc_saude_fila`, reincluída; senão LAI 18); dengue (`pmc_dengue`) | Espera por especialidade por regional; atendimentos por unidade | E-Saúde pronto; fila a conferir no portal |
+| P6 | Habitação | Déficit, fila da Cohab, ocupações | Fila de Pretendentes (`pmc_cohab_fila`, reincluída do portal) | Pretendentes por regional | A conferir no portal |
+| P7 | Creches | Fila por vaga em CMEI | SME (LAI 16); Censo Escolar INEP (planejado M2) | Crianças em espera por regional | Depende da LAI 16 |
+| P8 | Emprego local | 2º problema nas pesquisas | O próprio Pineal: `m2_movimento`, risco de fechamento, saturação | Saldo de abertura/fechamento e risco por bairro | Pronto (reuso direto do B2B, agregado) |
+| P9 | Zeladoria geral | Iluminação, buraco, poda | 156/SIGMU (ativos) | Chamados por tipo por 1.000 domicílios | Pronto |
+
+Entregável da fase: tabela `pauta_bairro` (pauta × bairro × indicador normalizado 0–100) alimentando o score
+territorial, e o cruzamento com `eleicao_bairro_votacao`/`eleicao_bairro_participacao`.
 
 ### ME3 — Financiamento e concorrência (opcional, mediante chancela específica)
 

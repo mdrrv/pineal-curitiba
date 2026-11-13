@@ -578,6 +578,10 @@ Pré-requisito: M0 carregado (setores, bairros, CNEFE). Os arquivos do TSE baixa
 Relatório em `relatorios/eleitoral.md`. O código TSE do município fica em `PINEAL_COD_TSE` (Curitiba: `75353`,
 conferir na primeira carga real; reserva por nome + UF).
 
+As **pautas territoriais** do ME2 (alagamentos, trânsito, situação de rua, segurança, saúde, habitação,
+creches, emprego, zeladoria) estão mapeadas em fontes e indicadores por bairro na taxonomia do PRD, com os
+pedidos LAI correspondentes em `docs/pedidos-lai.md` (15–18).
+
 ---
 
 ## Publicação (M3)
