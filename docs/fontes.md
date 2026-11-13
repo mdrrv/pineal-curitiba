@@ -173,6 +173,31 @@ PM e Polícia Civil não têm base própria aberta: os registros das duas entram
 | INPI (planejado) | Marcas por CNPJ titular: empresa que investe em marca | acesso em lote a confirmar |
 | Simepar e INMET (planejado) | Chuva e temperatura diárias: sazonalidade do varejo | |
 
+## 13. TSE: dados eleitorais (módulo ME)
+
+Família do módulo eleitoral (escopo, fases e limites legais em [`prd-eleitoral-2028.md`](prd-eleitoral-2028.md)).
+Tudo é dado aberto do [Portal de Dados Abertos do TSE](https://dadosabertos.tse.jus.br/), agregado por seção
+eleitoral: nenhum dado nominal de eleitor, e nenhum vínculo com a base de CNPJs. O elo territorial é
+seção → local de votação (endereço/coordenada) → chave territorial do Pineal.
+
+| Base | Conteúdo | Chave | Status | Uso no ME |
+|---|---|---|---|---|
+| Locais de votação (`eleitorado_local_votacao_<ano>`) | Local de cada seção, com endereço e, nas extrações recentes, coordenada (`-1` = sem) | `end`/`geo` | ✅ leitor pronto (`etl/fontes/tse_locais.py`) | Ponte seção → bairro/setor/H3; seção sem coordenada passa pela geocodificação do núcleo |
+| Votação por seção (`votacao_secao_<ano>_PR`) | Votos por ano, turno, cargo e votável; aptos, comparecimento e abstenções | `terr` | ✅ leitor pronto (`etl/fontes/tse_votacao.py`) | Série histórica 2016–2026 por bairro; abstenção e volatilidade |
+| Perfil do eleitorado por seção (`perfil_eleitor_secao_<ano>_PR`) | Eleitores por gênero, faixa etária e escolaridade | `terr` | ✅ leitor pronto (`etl/fontes/tse_eleitorado.py`) | Perfil do eleitor × Censo 2022 por território |
+| Prestação de contas (DivulgaCandContas) | Receitas e despesas de campanha | `terr` | planejado (ME3) | Só mediante chancela da fase (PRD) |
+| Câmara Municipal (CMC) | Vereadores, proposições, votações | `terr` | planejado (ME1) | Desempenho territorial dos concorrentes |
+
+Layouts variam entre anos (como nas listas M1b): o leitor exige só as colunas obrigatórias e o layout real
+se confere na primeira carga. O código TSE do município (`CD_MUNICIPIO`, que não é o código IBGE nem o da
+Receita) fica em `PINEAL_COD_TSE`, com filtro de reserva por nome + UF.
+
+**Pautas do ME2** (dor territorial × voto): a taxonomia completa, com fontes e indicadores por bairro, está no
+[PRD](prd-eleitoral-2028.md). Reaproveita o que já está ativo (156/SIGMU, SiGesGuarda, E-Saúde, INMET, GTFS,
+Fala Curitiba como gabarito de prioridade declarada) e acrescenta: `pmc_saude_fila` e `pmc_cohab_fila`
+(conjuntos do portal que o recorte B2B tinha deixado de fora), acidentes do BPTran, fila de CMEI e atendimentos
+agregados da FAS (pedidos LAI 15–18 em [`pedidos-lai.md`](pedidos-lai.md)).
+
 ## Fora de propósito
 
 - Google Places e popular times: pagos e com termos que proíbem o uso.
