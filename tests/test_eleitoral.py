@@ -146,8 +146,9 @@ def test_eleitoral(conn, ambiente):
             (2024, 5, None, None),  # sem local de votação
         ]
 
+        # COLLATE "C": a ordem de '(sem território)' em relação às letras varia com o locale do banco
         cur.execute("""SELECT bairro, nr_votavel, nm_votavel, votos, pct_cargo FROM eleicao_bairro_votacao
-                       WHERE ano = 2024 AND cd_cargo = 11 ORDER BY bairro, nr_votavel""")
+                       WHERE ano = 2024 AND cd_cargo = 11 ORDER BY bairro COLLATE "C", nr_votavel""")
         D = Decimal
         assert cur.fetchall() == [
             ("(sem território)", 20, "BELTRANO", 5, D("100.00")),
@@ -162,7 +163,7 @@ def test_eleitoral(conn, ambiente):
         assert cur.fetchall() == [("Centro", 100, D("100.00"))]
 
         cur.execute("""SELECT bairro, secoes, aptos, comparecimento, abstencoes, abstencao_pct
-                       FROM eleicao_bairro_participacao WHERE ano = 2024 ORDER BY bairro""")
+                       FROM eleicao_bairro_participacao WHERE ano = 2024 ORDER BY bairro COLLATE "C" """)
         assert cur.fetchall() == [
             ("(sem território)", 1, 60, 45, 15, D("25.00")),
             ("Batel", 1, 50, 40, 10, D("20.00")),
