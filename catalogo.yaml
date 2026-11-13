@@ -5,6 +5,7 @@
 #           | planejado (sem script ainda) | lai (só via pedido de acesso à informação) | convenio
 #           | fora (mapeada e descartada, com o motivo em obs)
 # fase:     M0 fundação | M1 prefeitura/IPPUC | M1-seg segurança | M1b listas com CNPJ | M2 contexto
+#           | ME eleitoral (estudo 2028, docs/prd-eleitoral-2028.md)
 # chaves:   cnpj | cnpj_talvez (a confirmar) | end (endereço) | nome | cnae | geo (coordenada) | terr (território agregado)
 #           | lote (indicação fiscal)
 #
@@ -497,7 +498,6 @@ fontes:
   - {id: caged, nome: "Novo CAGED", dono: MTE, fase: M2, status: planejado, chaves: [terr]}
   - {id: rais, nome: "RAIS", dono: MTE, fase: M2, status: planejado, chaves: [terr]}
   - {id: inep_censo_escolar, nome: "Censo Escolar", dono: INEP, fase: M2, status: planejado, chaves: [geo]}
-  - {id: tse_eleitorado, nome: "Eleitorado por local de votação", dono: TSE, fase: M2, status: planejado, chaves: [end]}
   - {id: ans_beneficiarios, nome: "Beneficiários de planos de saúde", dono: ANS, fase: M2, status: planejado, chaves: [terr]}
   - {id: aneel_gd, nome: "Geração distribuída", dono: ANEEL, fase: M2, status: planejado, chaves: [terr]}
   - {id: bcb_estban, nome: "ESTBAN e agências", dono: BCB, fase: M2, status: planejado, chaves: [end, terr]}
@@ -535,3 +535,49 @@ fontes:
   - {id: smu_alvaras_construcao, nome: "Alvarás de construção", dono: SMU, fase: M2, status: lai, chaves: [lote]}
   - {id: setran_estar, nome: "Áreas de EstaR", dono: Setran, fase: M2, status: lai, chaves: [geo]}
   - {id: urbs_bilhetagem, nome: "Passageiros por linha, terminal e hora", dono: URBS, fase: M2, status: lai, chaves: [geo]}
+
+  # ---------------------------------------------------------------- ME: eleitoral (TSE), docs/prd-eleitoral-2028.md
+
+  - id: tse_locais_votacao
+    nome: Locais de votação e eleitorado por seção
+    dono: TSE (Portal de Dados Abertos)
+    fase: ME
+    status: a_conferir
+    chaves: [end, geo]
+    formato: csv (zip nacional por ano)
+    periodicidade: por eleição
+    url_modelo: https://cdn.tse.jus.br/estatistica/sead/odsele/eleitorado_locais_votacao/eleitorado_local_votacao_{ano}.zip
+    anos: [2018, 2020, 2022, 2024, 2026]
+    uso: "elo seção eleitoral -> endereço -> chave territorial; NR_LATITUDE/NR_LONGITUDE -1 = sem coordenada (geocodifica pelo núcleo)"
+    script: etl/fontes/tse_locais.py
+
+  - id: tse_votacao_secao
+    nome: Votação nominal e por partido, por seção eleitoral
+    dono: TSE (Portal de Dados Abertos)
+    fase: ME
+    status: a_conferir
+    chaves: [terr]
+    formato: csv (zip por ano e UF)
+    periodicidade: por eleição
+    url_modelo: https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_secao/votacao_secao_{ano}_{uf}.zip
+    anos: [2016, 2018, 2020, 2022, 2024, 2026]
+    uso: votos por ano/turno/cargo/votável e participação (aptos, comparecimento, abstenções) por seção
+    script: etl/fontes/tse_votacao.py
+
+  - id: tse_perfil_eleitorado
+    nome: Perfil do eleitorado por seção (gênero, faixa etária, escolaridade)
+    dono: TSE (Portal de Dados Abertos)
+    fase: ME
+    status: a_conferir
+    chaves: [terr]
+    formato: csv (zip por ano e UF)
+    periodicidade: por eleição
+    url_modelo: https://cdn.tse.jus.br/estatistica/sead/odsele/perfil_eleitor_secao/perfil_eleitor_secao_{ano}_{uf}.zip
+    anos: [2016, 2018, 2020, 2022, 2024, 2026]
+    uso: perfil agregado por seção para cruzar com o Censo por território
+    script: etl/fontes/tse_eleitorado.py
+
+  - {id: tse_prestacao_contas, nome: "Prestação de contas de campanha (DivulgaCandContas)", dono: TSE, fase: ME,
+     status: planejado, chaves: [terr], obs: "fase ME3, mediante chancela específica (PRD)"}
+  - {id: cmc_vereadores, nome: "Vereadores, proposições e votações da Câmara Municipal", dono: CMC, fase: ME,
+     status: planejado, chaves: [terr], obs: "fase ME1; levantar formato no portal da CMC"}

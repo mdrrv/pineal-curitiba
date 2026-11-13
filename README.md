@@ -16,6 +16,7 @@ Funil de inteligência territorial B2B para Curitiba. Cruza a base de empresas d
 - [Rodando o M0](#rodando-o-m0)
 - [Rodando o M1](#rodando-o-m1)
 - [Rodando o M2](#rodando-o-m2)
+- [Módulo eleitoral (ME)](#módulo-eleitoral-me)
 - [O que sai no banco](#o-que-sai-no-banco)
 - [Geocodificação: como ler os níveis](#geocodificação-como-ler-os-níveis)
 - [Catálogo de fontes](#catálogo-de-fontes)
@@ -56,6 +57,7 @@ Funil de inteligência territorial B2B para Curitiba. Cruza a base de empresas d
 | M1-seg Segurança | SiGesGuarda (Guarda Municipal) e índice de risco por bairro; CAPE/SESP-PR, Bombeiros e Defesa Civil | **SiGesGuarda e índice prontos e testados.** CAPE, Bombeiros e Defesa Civil dependem da LAI (#14) e entram na mesma tabela |
 | M1b Listas com CNPJ | MDIC, BNDES, IBAMA, IAT, CADASTUR, ANATEL, MAPA, e-MEC, CNES, ANP | **Leitor pronto e testado com arquivos sintéticos.** Layout de cada órgão a conferir na primeira carga real (arquivos baixados à mão em `dados/bruto/<lista>/`) |
 | M3 Plataforma | Publicação dos agregados no módulo Pineal | **Pacote de publicação pronto** (recorte sem dado pessoal, FlatGeobuf/Parquet, manifesto, PMTiles via tippecanoe). Integração com o módulo Pineal e PostGIS na VPS aguardam ok (#21) |
+| **ME0** Eleitoral (TSE) | Locais de votação geocodificados, votação por seção (2016–2026), perfil do eleitorado, ponte seção → território, agregados por bairro | **Pronto e testado com arquivos sintéticos no layout do TSE.** PRD com escopo, fases e limites legais em [`docs/prd-eleitoral-2028.md`](docs/prd-eleitoral-2028.md), aguardando chancela; carga real depende da rodada real do M0 |
 
 ---
 
@@ -550,6 +552,34 @@ Limites: viaduto vira cruzamento na nodagem (para caminhada é aceitável); o te
 
 ---
 
+## Módulo eleitoral (ME)
+
+Estudo territorial para as eleições municipais de 2028, em cima da mesma chave territorial. Escopo, fases
+(ME0–ME3), cronograma e **limites legais** no PRD: [`docs/prd-eleitoral-2028.md`](docs/prd-eleitoral-2028.md).
+Regras fixas do módulo: só agregados por seção eleitoral, como o TSE publica; nenhum dado nominal de eleitor;
+nenhum cruzamento com a base de CNPJs — o B2B e o ME compartilham só a infraestrutura territorial.
+
+```bash
+python -m etl.me                    # locais de votação, votação por seção, perfil do eleitorado (TSE)
+python -m etl.me --so votacao       # uma etapa: locais | votacao | perfil
+```
+
+Pré-requisito: M0 carregado (setores, bairros, CNEFE). Os arquivos do TSE baixam sozinhos do CDN
+(`catalogo.yaml`, família `tse_*`) ou podem ser colocados à mão em `dados/bruto/<fonte>/`. O que sai:
+
+| Tabela | Conteúdo |
+|---|---|
+| `eleicao_local_votacao` | Local de cada seção por eleição, com coordenada do TSE ou geocodificada, e chave territorial |
+| `eleicao_votacao_secao` | Votos por ano, turno, cargo e votável; aptos, comparecimento e abstenções por seção |
+| `eleicao_perfil_secao` | Eleitores por gênero × faixa etária × escolaridade |
+| `eleicao_secao_territorio` | Ponte seção → território (local do ano mais próximo; seção agregada herda o da principal) |
+| `eleicao_bairro_votacao`, `eleicao_bairro_participacao` | Votação e abstenção por bairro |
+
+Relatório em `relatorios/eleitoral.md`. O código TSE do município fica em `PINEAL_COD_TSE` (Curitiba: `75353`,
+conferir na primeira carga real; reserva por nome + UF).
+
+---
+
 ## Publicação (M3)
 
 A plataforma recebe só coordenadas, malhas e agregados. O pacote é gerado localmente e conferido antes de subir:
@@ -714,7 +744,8 @@ pineal-curitiba/
 ├── .github/workflows/         CI: ruff + pytest com PostGIS
 ├── docs/
 │   ├── fontes.md              fontes comentadas, por tema
-│   └── pedidos-lai.md         rascunhos dos pedidos de acesso à informação
+│   ├── pedidos-lai.md         rascunhos dos pedidos de acesso à informação
+│   └── prd-eleitoral-2028.md  PRD do módulo eleitoral (escopo, fases ME0-ME3, limites legais, chancela)
 ├── apoio/
 │   └── zona_regra.csv         regras de uso por zona (preencher a partir da lei)
 ├── sql/
@@ -726,13 +757,15 @@ pineal-curitiba/
 │   ├── 06_censo_schema.sql    tabelas do Censo por setor e moradores_raio
 │   ├── 07_rede_schema.sql     rede de caminhada, isócronas e moradores_area
 │   ├── 08_extras_schema.sql   marcas do INPI e clima diário
+│   ├── 09_eleitoral_schema.sql tabelas do módulo eleitoral (ME)
 │   ├── 20_territorio.sql      chave territorial com desempate
 │   ├── 30_enriquecimento.sql  perfil do ponto, domiciliação, rede, ponto comercial, zoneamento
 │   ├── 40_m2.sql              saturação, sobrevivência, densidade, movimentos, raio_x
 │   ├── 50_alvaras.sql         cruzamento alvará x CNPJ e sinais
 │   ├── 60_seguranca.sql       agregados de segurança e índice de risco por bairro
 │   ├── 70_demanda.sql         demografia por setor, demanda por hexágono, espaço livre
-│   └── 80_score.sql           score de lead (pesos em lead_peso)
+│   ├── 80_score.sql           score de lead (pesos em lead_peso)
+│   └── 90_eleitoral.sql       ponte seção -> território e agregados eleitorais por bairro
 ├── etl/
 │   ├── config.py, db.py       .env, schema, run_id, conexão, registro de etapas e cargas
 │   ├── baixar.py, geo.py      download com cache; leitura de camadas vetoriais
@@ -740,7 +773,7 @@ pineal-curitiba/
 │   │                          apoio, mindata_cruzamentos, overture_edificacoes, pmc_alvaras,
 │   │                          pmc_licitacoes, pmc_zeladoria, pmc_unidades, urbs_gtfs,
 │   │                          pmc_sigesguarda, listas_cnpj, ibge_censo_setor, osm_vias, zona_regra,
-│   │                          inpi_marcas, inmet_clima
+│   │                          inpi_marcas, inmet_clima, tse_locais, tse_votacao, tse_eleitorado (+ tse_comum)
 │   ├── geocodificar.py, avaliar_geocodificacao.py, territorio.py
 │   ├── enriquecer.py, indicadores.py, exportar.py
 │   ├── isocronas.py           isócronas a pé e de ônibus
@@ -749,7 +782,7 @@ pineal-curitiba/
 │   ├── verificar.py           verificação antes da rodada (bancos, hosts, arquivos, disco)
 │   ├── tudo.py                rodada inteira na ordem das dependências, com retomada
 │   ├── portal.py, leitura.py  cliente do portal da prefeitura; leitura de CSV grande
-│   └── m0.py, m1.py, m2.py    orquestradores
+│   └── m0.py, m1.py, m2.py, me.py  orquestradores (me: módulo eleitoral)
 ├── scripts/pmtiles.sh         camadas do pacote de publicação -> PMTiles (tippecanoe)
 ├── tests/
 ├── dados/                     arquivos baixados e exportados (fora do git)
@@ -764,4 +797,5 @@ pineal-curitiba/
 - **Indicadores e exportações não têm nome, razão social nem CPF**: só código de atividade, situação, território e contagens. Saúde, segurança e benefícios entram só agregados por território.
 - `dados/` e `relatorios/` estão no `.gitignore`: dados baixados e resultados não vão para o git.
 - Mapa Cadastral e Guia Amarela do IPPUC são consultas por lote: usar sob demanda, sem raspagem em massa.
+- **Módulo eleitoral (ME): só agregados por seção, como o TSE publica.** Nenhum dado nominal de eleitor, nenhuma lista de contato, nenhum cruzamento com a base de CNPJs. Os limites (LGPD, Lei 9.504/97, resoluções do TSE) estão no [PRD](docs/prd-eleitoral-2028.md) e qualquer mudança neles exige nova chancela.
 - Licenças: o Portal de Dados Abertos de Curitiba publica sob **CC BY 4.0**; Overture e OpenStreetMap sob **ODbL**. Qualquer uso público cita a fonte. IBGE, Receita e demais fontes federais são dados abertos com atribuição. Ookla ficou de fora por proibir uso comercial.
